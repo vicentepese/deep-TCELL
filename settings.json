@@ -1,5 +1,6 @@
 {
     "dir":{
-        "Data":"./Data/"
+        "Data":"./Data/",
+        "Resources":"./Resources/"
     }
 }
