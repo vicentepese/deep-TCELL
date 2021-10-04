@@ -36,8 +36,8 @@ def get_dataloaders(settings:dict, dataset:Dataset):
     """
 
     # Get lengths
-    lengths = [np.ceil(len(dataset)*(1-settings["param"]["val_split"])).astype('int'),
-               np.floor(len(dataset)*settings["param"]["val_split"]).astype('int')]
+    lengths = [np.ceil(len(dataset)*(1-settings["param"]["test_split"])).astype('int'),
+               np.floor(len(dataset)*settings["param"]["test_split"]).astype('int')]
 
     # Create random split and dataloaders
     train_dataset, test_dataset = random_split(dataset, lengths)

@@ -16,6 +16,7 @@
     },
 
     "param":{
-        "test_split":0.7
+        "test_split":0.7, 
+        "batch_size":32
     }
 }
