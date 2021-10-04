@@ -26,9 +26,7 @@ from transformers import EarlyStoppingCallback
 from torchtext.vocab import build_vocab_from_iterator
 from transformers import pipeline
 
-from utils.util_plot import plot_confusion_matrix
-
-from util_analysis import get_preds, eval_vectors, eval_vectors_batch, eval_vectors_plot
+from util_plot import plot_confusion_matrix
 
 metric = load_metric("f1")
 
@@ -125,10 +123,8 @@ def read_tcr_csv(csv_path):
     # Get activation
     y = df['activated_by']
     y = y.fillna('none').values
-    # Get multimer info
-    m = df['multimer_nq']
-    m = m.fillna('none').values
-    return x, y, b, m
+
+    return x, y, b
     #y = [y_to_num[x] for x in y]
     #return CDR3ab, y
 
@@ -198,26 +194,24 @@ if __name__=='__main__':
     num_to_y = {v: k for k, v in y_to_num.items()}
 
     # Data paths
-    project_path = 'C:\\Users\\andre\\Dropbox\\Phd\\Deep_TCR_Activation'
-    data_path = os.path.join(project_path, 'data')
-    csv_files = ['TCR_activated_ml_fill.csv', 'TCR_negative_ml_fill.csv', 'TCR_other_CD4_fill.csv', 
-                 'TCR_other_CD8_fill.csv', 'TCR_other_DQ0602_ml_fill.csv']
+    project_path = '/home/vicente/Documents/Deep Learning/DL_2021/deep-TCELL'
+    data_path = os.path.join(project_path, 'Resources')
+    csv_files = ['TCR_activated_ml.csv', 'TCR_negative_ml.csv', 'TCR_other_CD4.csv', 
+                 'TCR_other_CD8.csv', 'TCR_other_DQ0602_ml.csv']
     csv_paths = [os.path.join(data_path, x) for x in csv_files]
 
     # Read CDR3ab, activation, binding, and multimer info
     x, y, b, m = [], [], [], []
     for csv_path in csv_paths:
-        x_temp, y_temp, b_temp, m_temp = read_tcr_csv(csv_path)
+        x_temp, y_temp, b_temp = read_tcr_csv(csv_path)
         x.append(x_temp)
         y.append(y_temp)
         b.append(b_temp)
-        m.append(m_temp)
 
     x = np.concatenate(x)
     y = np.concatenate(y)
     b = np.concatenate(b)
-    m = np.concatenate(m)
-    X = np.stack((x,y,b,m), 1)
+    X = np.stack((x,y,b), 1)
 
     # Split into training, validation, and test
     train_ratio = 0.7
@@ -250,7 +244,7 @@ if __name__=='__main__':
                 "<unk>",
                 "<mask>",
                 ])
-        tokenizer.save_model(tokenizer_path)
+        tokenizer.save_model(project_path)
 
     # Add tokenizer processing
     tokenizer._tokenizer.post_processor = BertProcessing(
