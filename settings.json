@@ -9,5 +9,9 @@
         "TCR_activated":"Resources/TCR_activated_ml.csv",
         "TCR_negative":"Resources/TCR_negative_ml.csv",
         "TCR_data":"Data/TCR_data.csv"
+    }, 
+
+    "database":{
+        "label":"num_label"
     }
 }
