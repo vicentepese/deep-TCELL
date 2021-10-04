@@ -1,6 +1,8 @@
 
-from operator import index
+from numpy import random
+from torch.utils.data.dataset import random_split
 import numpy as np 
+import torch
 import pandas as pd
 import json
 
@@ -23,6 +25,30 @@ class CDR3Dataset(Dataset):
     
     def __len__(self):
         return len(self.data)
+    
+def get_dataloaders(settings:dict, dataset:Dataset):
+    """get_dataloaders [Get train and test dataloaders]
+
+    Args:
+        settings (dict): [Settings dictionary]
+        dataset (Dataset): [CDR3 dataset with labels]
+
+    """
+
+    # Get lengths
+    lengths = [np.ceil(len(dataset)*(1-settings["param"]["val_split"])).astype('int'),
+               np.floor(len(dataset)*settings["param"]["val_split"]).astype('int')]
+
+    # Create random split and dataloaders
+    train_dataset, test_dataset = random_split(dataset, lengths)
+    train_loader = DataLoader(dataset=train_dataset,
+                              batch_size=settings["param"]["batch_size"],
+                              shuffle=True)
+    test_loader = DataLoader(dataset=test_dataset,
+                             batch_size=11,
+                              shuffle=True)
+
+    return train_dataset, test_dataset, train_loader, test_loader
   
 def main():
     
@@ -30,10 +56,20 @@ def main():
     with open("settings.json", "r") as inFile:
         settings = json.load(inFile)
         
-    # Create Dataset
-    cdr3_data = CDR3Dataset(path_to_data=settings["file"]["TCR_data"], label=settings["database"]["label"])
+    # Set random seed
+    random.seed(seed=42)
     
-    pass
-
+    # Initialize device
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        
+    # Create Dataset
+    cdr3_dataset = CDR3Dataset(path_to_data=settings["file"]["TCR_data"], label=settings["database"]["label"])
+    
+    # Get DatLoaders
+    _, _, train_loader, test_loader = get_dataloaders(settings, cdr3_dataset)
+    
+    
+    
+    
 if __name__ == "__main__":
     main()

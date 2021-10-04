@@ -13,5 +13,9 @@
 
     "database":{
         "label":"num_label"
+    },
+
+    "param":{
+        "test_split":0.7
     }
 }
