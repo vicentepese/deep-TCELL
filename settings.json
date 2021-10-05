@@ -8,6 +8,9 @@
     "file":{
         "TCR_activated":"Resources/TCR_activated_ml.csv",
         "TCR_negative":"Resources/TCR_negative_ml.csv",
+        "tokenizer_data":"Resources/token_train_dict.txt",
+        "tokenizer_merg":"Resources/merge.txt",
+        "tokenizer_vocab":"Resources/vocak.json",
         "TCR_data":"Data/TCR_data.csv"
     }, 
 

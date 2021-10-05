@@ -61,7 +61,9 @@ def main():
         settings = json.load(inFile)
         
     # Set random seed
-    random.seed(seed=42)
+    seed_nr = 1964
+    torch.manual_seed(seed_nr)
+    np.random.seed(seed_nr)
     
     # Initialize device
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
