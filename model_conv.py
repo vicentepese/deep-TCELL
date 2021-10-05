@@ -6,7 +6,7 @@ class DeepTCDR (nn.Module):
         super(DeepTCDR, self).__init__()
         
         # Transformer block 
-        TB1 = nn.Transformer(d_model=batch_size,
+        self.TB1 = nn.Transformer(d_model=batch_size,
                              nhead=8,
                              num_encoder_layers=6,
                              num_decoder_layers=6,
@@ -14,10 +14,10 @@ class DeepTCDR (nn.Module):
                              dropout=0.1,
                              activation="relu")
         
-    def forward(self, x):
+    def forward(self, x, y):
         
         # Transformer block 
-        x = self.TB1(x)
+        x = self.TB1(src = x, tgt = y)
         
         return x
     

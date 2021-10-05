@@ -1,6 +1,7 @@
 
 from numpy import random
 from torch.utils.data.dataset import random_split
+from model import DeepTCDR
 import numpy as np 
 import torch
 import pandas as pd
@@ -18,9 +19,12 @@ class CDR3Dataset(Dataset):
             self.label = label
         self.path_to_data = path_to_data
         self.data = pd.read_csv(self.path_to_data)
+        self.labels = np.unique(self.data[[self.label]])
         
     def __getitem__(self, index:int):
-        CDR3ab, label = self.data[["CDR3ab"]].iloc[index], self.data[[self.label]].iloc[index]
+        CDR3ab, label_idx = self.data[["CDR3ab"]].iloc[index], self.data[[self.label]].iloc[index]
+        label = np.zeros(shape = (len(self.labels)))
+        label[label_idx] = 1
         return CDR3ab, label
     
     def __len__(self):
@@ -66,7 +70,15 @@ def main():
     cdr3_dataset = CDR3Dataset(path_to_data=settings["file"]["TCR_data"], label=settings["database"]["label"])
     
     # Get DatLoaders
-    _, _, train_loader, test_loader = get_dataloaders(settings, cdr3_dataset)
+    train_dataset, _, train_loader, test_loader = get_dataloaders(settings, cdr3_dataset)
+    
+    # Import model
+    net = DeepTCDR(batch_size=settings["param"]["batch_size"])
+    
+    # Test with random data 
+    x, y = train_dataset[0]
+    x = np.random(settings["param"]["batch_size"], 1, 10)
+    print(net(x, y))
     
     
     
