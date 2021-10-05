@@ -14,12 +14,19 @@ from tokenizers.implementations import ByteLevelBPETokenizer
 
 class CDR3Dataset(Dataset):
     
-    def __init__(self, path_to_data:str = None, label:str = None) -> None:
+    def __init__(self, settings:dict, train:bool = True, label:str = None) -> None:
         cols = ["num_label", "activatedby_HA", "activatedby_NP", "activtedby_HCRT", "activatedby_any"]
+        
         if label not in cols:
             raise ValueError("Invalid label type. Expected one of %s" % cols)
         else: 
             self.label = label
+        
+        if train == True:
+            path_to_data = settings["file"]["train_data"] 
+        else:
+            path_to_data = settings["file"]["test_data"]   
+            
         self.path_to_data = path_to_data
         self.data = pd.read_csv(self.path_to_data)
         self.labels = np.unique(self.data[[self.label]])
