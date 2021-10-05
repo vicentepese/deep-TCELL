@@ -264,64 +264,64 @@ if __name__=='__main__':
 
     # tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_path, max_len=512)
 
-    # Dataset
-    tcr_datasets = {subset: LineByLineTextDataset(tokenizer=tokenizer, 
-                                                  file_path=input_data_path[subset], 
-                                                  block_size=128) for subset in ['train','val','test']}
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=0.15)
+    # # Dataset
+    # tcr_datasets = {subset: LineByLineTextDataset(tokenizer=tokenizer, 
+    #                                               file_path=input_data_path[subset], 
+    #                                               block_size=128) for subset in ['train','val','test']}
+    # data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=0.15)
 
-    # Trainer
-    training_args = TrainingArguments(
-        output_dir=tokenizer_path,
-        overwrite_output_dir=True,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        num_train_epochs=10,
-        per_device_train_batch_size=64,
-        learning_rate=5e-5,
-        weight_decay=2e-6,
-        save_total_limit=2,
-        prediction_loss_only=True,
-        load_best_model_at_end=True)
+    # # Trainer
+    # training_args = TrainingArguments(
+    #     output_dir=tokenizer_path,
+    #     overwrite_output_dir=True,
+    #     evaluation_strategy="epoch",
+    #     save_strategy="epoch",
+    #     num_train_epochs=10,
+    #     per_device_train_batch_size=64,
+    #     learning_rate=5e-5,
+    #     weight_decay=2e-6,
+    #     save_total_limit=2,
+    #     prediction_loss_only=True,
+    #     load_best_model_at_end=True)
 
-    # Model
-    overwrite_train = False
-    if overwrite_train or not os.path.exists(os.path.join(tokenizer_path, 'pytorch_model.bin')):
-        model = RobertaForMaskedLM(config=config)
-    else:
-        model = RobertaForMaskedLM.from_pretrained(tokenizer_path, config=config)
+    # # Model
+    # overwrite_train = False
+    # if overwrite_train or not os.path.exists(os.path.join(tokenizer_path, 'pytorch_model.bin')):
+    #     model = RobertaForMaskedLM(config=config)
+    # else:
+    #     model = RobertaForMaskedLM.from_pretrained(tokenizer_path, config=config)
 
-    trainer = Trainer(
-        args=training_args,
-        data_collator=data_collator,
-        train_dataset=tcr_datasets['train'],
-        eval_dataset=tcr_datasets['val'],
-        callbacks = [EarlyStoppingCallback(early_stopping_patience = 3)],
-        model_init=lambda trial: model_init(trial, tokenizer_path, config),
-        compute_metrics=compute_metrics)
+    # trainer = Trainer(
+    #     args=training_args,
+    #     data_collator=data_collator,
+    #     train_dataset=tcr_datasets['train'],
+    #     eval_dataset=tcr_datasets['val'],
+    #     callbacks = [EarlyStoppingCallback(early_stopping_patience = 3)],
+    #     model_init=lambda trial: model_init(trial, tokenizer_path, config),
+    #     compute_metrics=compute_metrics)
 
-    # Training
-    if overwrite_train or not os.path.exists(os.path.join(tokenizer_path, 'pytorch_model.bin')):
-        #trainer.hyperparameter_search(direction='minimize', hp_space=my_hp_space, n_trials=10)
-        trainer.train()
-        trainer.save_model(tokenizer_path)
+    # # Training
+    # if overwrite_train or not os.path.exists(os.path.join(tokenizer_path, 'pytorch_model.bin')):
+    #     #trainer.hyperparameter_search(direction='minimize', hp_space=my_hp_space, n_trials=10)
+    #     trainer.train()
+    #     trainer.save_model(tokenizer_path)
         
-    # Fill mask (1: predict peptide binding, 2: predict sequence)
-    fill_mask = pipeline("fill-mask", model=tokenizer_path, tokenizer=tokenizer)
+    # # Fill mask (1: predict peptide binding, 2: predict sequence)
+    # fill_mask = pipeline("fill-mask", model=tokenizer_path, tokenizer=tokenizer)
 
-    # Find 2 examples of each label
-    cdr_pos_mask = 8
-    num_examples_per_class = 2
-    for label_num in range(1,9):
-        label = num_to_y[str(label_num)]
-        test_data_examples = [x for idx, x in enumerate(all_data['test']) if X_test[idx, 1] == label][0:num_examples_per_class]
-        for i in range(num_examples_per_class):
-            input_str = test_data_examples[i]
-            input_str_masked = input_str[0:cdr_pos_mask] + '<mask>' + input_str[(cdr_pos_mask+1):]
-            pred = fill_mask(input_str_masked)
-            print('Input: {} - Label: {}.'.format(input_str_masked, input_str[cdr_pos_mask]))
-            print('Prediction #1: {} - Confidence: {:.5f}.'.format(pred[0]['token_str'], pred[0]['score']))
-            print('Prediction #2: {} - Confidence: {:.5f}.'.format(pred[1]['token_str'], pred[1]['score']))
+    # # Find 2 examples of each label
+    # cdr_pos_mask = 8
+    # num_examples_per_class = 2
+    # for label_num in range(1,9):
+    #     label = num_to_y[str(label_num)]
+    #     test_data_examples = [x for idx, x in enumerate(all_data['test']) if X_test[idx, 1] == label][0:num_examples_per_class]
+    #     for i in range(num_examples_per_class):
+    #         input_str = test_data_examples[i]
+    #         input_str_masked = input_str[0:cdr_pos_mask] + '<mask>' + input_str[(cdr_pos_mask+1):]
+    #         pred = fill_mask(input_str_masked)
+    #         print('Input: {} - Label: {}.'.format(input_str_masked, input_str[cdr_pos_mask]))
+    #         print('Prediction #1: {} - Confidence: {:.5f}.'.format(pred[0]['token_str'], pred[0]['score']))
+    #         print('Prediction #2: {} - Confidence: {:.5f}.'.format(pred[1]['token_str'], pred[1]['score']))
 
     # Test set performance
     #perf_tcr = {subset: trainer.evaluate(eval_dataset=tcr_datasets[subset]) for subset in ['train', 'val', 'test']}

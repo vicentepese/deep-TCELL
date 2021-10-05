@@ -6,16 +6,17 @@ import torch
 
 from torch.utils.data import DataLoader, Dataset
 
-from tokenizers import normalizers
+from tokenizers import Encoding, normalizers
 from tokenizers import pre_tokenizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.implementations import ByteLevelBPETokenizer
 from transformers import RobertaForSequenceClassification, TrainingArguments, Trainer,RobertaConfig
 
+# Test libs
 class CDR3Dataset(Dataset):
     
-    def __init__(self, settings:dict, train:bool = True, label:str = None) -> None:
+    def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None) -> None:
         cols = ["num_label", "activatedby_HA", "activatedby_NP", "activtedby_HCRT", "activatedby_any"]
         
         if label not in cols:
@@ -32,8 +33,10 @@ class CDR3Dataset(Dataset):
         self.data = pd.read_csv(self.path_to_data)
         self.labels = np.unique(self.data[[self.label]])
         
+        self.tokenizer = tokenizer
+        
     def __getitem__(self, index:int):
-        CDR3ab, label_idx = self.data[["CDR3ab"]].iloc[index], self.data[[self.label]].iloc[index]
+        CDR3ab, label_idx = self.data.CDR3ab[index], self.data[[self.label]].iloc[index]
         label = np.zeros(shape = (len(self.labels)))
         label[label_idx] = 1
         return CDR3ab, label
@@ -41,8 +44,20 @@ class CDR3Dataset(Dataset):
     def __len__(self):
         return len(self.data)
     
+class CDR3abEncoders(Dataset):
+    
+    def __init__(self, encodings:Encoding=None ,labels:list=None):
+        self.encodings = encodings
+        self.labels = labels
+        
+    def __getitem__(self, idx:int=None) -> dict:
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item["labels"] = torch.tensor(self.labels[idx])
+        return item
+    
+    def __len__(self):
+        return(int(len(self.labels)))
 
-from transformers import RobertaTokenizer
 
 def main():
     
@@ -63,10 +78,18 @@ def main():
     tokenizer = ByteLevelBPETokenizer(vocab=settings["file"]["tokenizer_vocab"], merges=settings["file"]["tokenizer_merge"])
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
-
+    
+    # Read dataframe
+    train_df = pd.read_csv(settings["file"]["train_data"])
+    test_df = pd.read_csv(settings["file"]["test_data"])
+    
+    # Parse encoders and labels
+    train_encodings, train_label = tokenizer.encode_batch(train_df.CRD3ab), train_df.num_label
+    test_encodings, test_label = tokenizer.encode_batch(test_df.CDR3ab), test_df.num_label
+    
     # Create dataset
-    data_train = CDR3Dataset(settings = settings, train=True, label="num_label")
-    data_test = CDR3Dataset(settings = settings, train=False, label="num_label")
+    data_train = CDR3Dataset(settings = settings, train=True, label="num_label",tokenizer=tokenizer)
+    data_test = CDR3Dataset(settings = settings, train=False, label="num_label",tokenizer=tokenizer)
     
     # Create dataloader
     train_loader = DataLoader(dataset=data_train,
@@ -103,7 +126,7 @@ def main():
     
     # Define Trainer
     trainer_model = Trainer(
-        data_collator=tokenizer.encode,
+        # data_collator=tokenizer.encode,
         model=model,
         args=training_args,
         train_dataset=data_train,
