@@ -1,3 +1,4 @@
+from operator import index
 import numpy as np
 import pandas as pd 
 import json
@@ -27,21 +28,24 @@ def get_token_train_data(settings:dict) -> list():
     # Merge 
     cols = ["CDR3ab", "activated_by"]
     tcr_df = pd.concat([data_act[cols], data_neg[cols]])
-    
+    tcr_df.to_csv(settings["file"]["TCR_data"], header=True, index=False)
+
     # Split train test and merge
     X_train, X_test = train_test_split(tcr_df, test_size=settings["param"]["test_split"])
+    tcr_df_set = {"train":X_train, "test":X_test}
+    tcr_df_path = {"train": settings["file"]["train_data"], "test": settings["file"]["test_data"]}
     
     # Tokenize labels , and create individual lables for HA69 and NP136
-    le = LabelEncoder().fit(tcr_df.activated_by)
-    tcr_df["num_label"] = le.transform(tcr_df.activated_by)
-    tcr_df["activatedby_HA"] = tcr_df.num_label.apply(lambda x: 1 if x in [0,1,2] else 0)
-    tcr_df["activatedby_HCRT"] = tcr_df.num_label.apply(lambda x: 1 if x in [1,3,4] else 0)
-    tcr_df["activatedby_NP"] = tcr_df.num_label.apply(lambda x: 1 if x in [2,4,5] else 0)
-    tcr_df["activated_any"] = tcr_df.num_label.apply(lambda x: 1 if x != 6 else 0)
-    
-    # Write dataframe
-    tcr_df.to_csv(settings["file"]["TCR_data"], header=True, index=False)
-    
+    for key in tcr_df_set.keys():
+        data_pre = tcr_df_set[key]
+        le = LabelEncoder().fit(data_pre.activated_by)
+        data_pre["num_label"] = le.transform(data_pre.activated_by)
+        data_pre["activatedby_HA"] = data_pre.num_label.apply(lambda x: 1 if x in [0,1,2] else 0)
+        data_pre["activatedby_HCRT"] = data_pre.num_label.apply(lambda x: 1 if x in [1,3,4] else 0)
+        data_pre["activatedby_NP"] = data_pre.num_label.apply(lambda x: 1 if x in [2,4,5] else 0)
+        data_pre["activated_any"] = data_pre.num_label.apply(lambda x: 1 if x != 6 else 0)
+        data_pre.to_csv(tcr_df_path[key], index=False, header=True)
+            
     # Write file to train tokenizer 
     with open(settings["file"]["tokenizer_data"],"w") as outFile:
         for cdr in X_train.CDR3ab:

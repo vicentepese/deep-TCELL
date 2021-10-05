@@ -11,7 +11,9 @@
         "tokenizer_data":"Resources/token_train_dict.txt",
         "tokenizer_merge":"Resources/merges.txt",
         "tokenizer_vocab":"Resources/vocab.json",
-        "TCR_data":"Data/TCR_data.csv"
+        "TCR_data":"Data/TCR_data.csv",
+        "train_data":"Data/train_data.csv", 
+        "test_data":"Data/test_data.csv"
     }, 
 
     "database":{
