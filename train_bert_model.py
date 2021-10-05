@@ -11,6 +11,7 @@ from tokenizers import pre_tokenizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.implementations import ByteLevelBPETokenizer
+from transformers import RobertaForSequenceClassification, TrainingArguments, Trainer,RobertaConfig
 
 class CDR3Dataset(Dataset):
     
@@ -64,8 +65,8 @@ def main():
     tokenizer.pre_tokenizer = pre_tokenizer
 
     # Create dataset
-    data_train = CDR3Dataset(settings = settings, train=True, label="activated_by")
-    data_test = CDR3Dataset(settings = settings, train=False, label="activated_by")
+    data_train = CDR3Dataset(settings = settings, train=True, label="num_label")
+    data_test = CDR3Dataset(settings = settings, train=False, label="num_label")
     
     # Create dataloader
     train_loader = DataLoader(dataset=data_train,
@@ -75,10 +76,44 @@ def main():
                             batch_size=settings["param"]["batch_size"],
                             shuffle=True)
     
+    # Define model
+    model_config = RobertaConfig(
+        vocab_size = tokenizer.get_vocab_size(),
+        max_position_embeddings=514,
+        num_attention_heads=12,
+        num_hidden_layers=6,
+        type_vocab_size=1,
+        output_hidden_states=True
+    )
+    model = RobertaForSequenceClassification(model_config)
+    
+    # Define Training Arguments
+    training_args = TrainingArguments(
+        output_dir=settings["dir"]["Outputs"],
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        per_device_train_batch_size=settings["param"]["batch_size"],
+        per_device_eval_batch_size=settings["param"]["batch_size"],
+        learning_rate=settings["param"]["learning_rate"],
+        weight_decay=settings["param"]["weight_decay"],
+        num_train_epochs=settings["param"]["n_epochs"],
+        load_best_model_at_end=True
+    )
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    
+    # Define Trainer
+    trainer_model = Trainer(
+        data_collator=tokenizer.encode,
+        model=model,
+        args=training_args,
+        train_dataset=data_train,
+        eval_dataset=data_test
+    )
+    
+    # Train 
+    trainer_model.train()
+    trainer_model.save_model(settings["dir"]["Outputs"])
     
     
-    
-    pass
-
 if __name__ == "__main__":
     main() 

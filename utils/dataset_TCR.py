@@ -262,7 +262,7 @@ if __name__=='__main__':
         type_vocab_size=1,
         output_hidden_states=True)
 
-    tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_path, max_len=512)
+    # tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_path, max_len=512)
 
     # Dataset
     tcr_datasets = {subset: LineByLineTextDataset(tokenizer=tokenizer, 

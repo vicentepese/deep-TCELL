@@ -2,7 +2,8 @@
     "dir":{
         "Data":"./Data/",
         "Resources":"./Resources/",
-        "utils":"./utils"
+        "utils":"./utils", 
+        "Outputs":"./Outputs/"
     },
 
     "file":{
@@ -22,6 +23,9 @@
 
     "param":{
         "test_split":0.7, 
-        "batch_size":32
+        "batch_size":16,
+        "learning_rate":5e-5,
+        "weight_decay":0,
+        "n_epochs":100
     }
 }
