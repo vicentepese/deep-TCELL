@@ -4,7 +4,7 @@ import json
 import tokenizers 
 import torch
 
-from torch import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 from tokenizers import normalizers
 from tokenizers import pre_tokenizers
@@ -64,6 +64,18 @@ def main():
     tokenizer.pre_tokenizer = pre_tokenizer
 
     # Create dataset
+    data_train = CDR3Dataset(settings = settings, train=True, label="activated_by")
+    data_test = CDR3Dataset(settings = settings, train=False, label="activated_by")
+    
+    # Create dataloader
+    train_loader = DataLoader(dataset=data_train,
+                              batch_size=settings["param"]["batch_size"],
+                              shuffle=True)
+    test_loader = DataLoader(dataset=data_test,
+                            batch_size=settings["param"]["batch_size"],
+                            shuffle=True)
+    
+    
     
     
     pass
