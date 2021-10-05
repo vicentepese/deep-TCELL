@@ -1,7 +1,7 @@
 
 from numpy import random
 from torch.utils.data.dataset import random_split
-from model import DeepTCDR
+from model_conv import DeepTCDR
 import numpy as np 
 import torch
 import pandas as pd
