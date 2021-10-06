@@ -46,13 +46,20 @@ class CDR3Dataset(Dataset):
     
 class CDR3abEncoders(Dataset):
     
-    def __init__(self, encodings:Encoding=None ,labels:list=None):
+    def __init__(self, encodings:Encoding=None ,labels:list=None, device:str="cpu"):
         self.encodings = encodings
         self.labels = labels
-        
+        self.labels_unique = np.unique(self.labels)
+        self.device = device
+    
+    # TODO: bottleneck here in self.encodings, running over it all the time
     def __getitem__(self, idx:int=None) -> dict:
-        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
-        item["labels"] = torch.tensor(self.labels[idx])
+        item = {key: torch.tensor(val[idx]).to(self.device) for key, val in self.encodings.items()}
+        label_idx = self.labels[idx]
+        label = np.zeros(shape = (len(self.labels_unique)))
+        label[label_idx] = 1
+        item["labels"] = torch.tensor(label).to(self.device)
+        # item["labels"] = torch.tensor(self.labels[idx]).to(self.device)
         return item
     
     def __len__(self):
@@ -64,12 +71,16 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
-        
+    
+    # Set device 
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
+    
     # Set random seed
     seed_nr = 1964
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
-    
+        
     # Create normalizer and pre-tokenizer
     normalizer = normalizers.Sequence([Lowercase(), NFD()])
     pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
@@ -84,18 +95,24 @@ def main():
     test_df = pd.read_csv(settings["file"]["test_data"])
     
     # Parse encoders and labels
-    train_encodings, train_label = tokenizer.encode_batch(train_df.CRD3ab), train_df.num_label
+    train_encodings, train_label = tokenizer.encode_batch(list(train_df.CDR3ab)), train_df.num_label
     test_encodings, test_label = tokenizer.encode_batch(test_df.CDR3ab), test_df.num_label
+    data_train, data_test = {"input_ids": [dic.ids for dic in train_encodings]}, {"input_ids": [dic.ids for dic in test_encodings]}
+    data_train["attention_mask"], data_test["attention_mask"] = [dic.attention_mask for dic in train_encodings], [dic.attention_mask for dic in test_encodings]
     
-    # Create dataset
-    data_train = CDR3Dataset(settings = settings, train=True, label="num_label",tokenizer=tokenizer)
-    data_test = CDR3Dataset(settings = settings, train=False, label="num_label",tokenizer=tokenizer)
+    # Create CDR3abEncoding
+    data_train_enc = CDR3abEncoders(encodings=data_train, labels=train_label, device=device)
+    data_test_enc = CDR3abEncoders(encodings=data_test, labels=test_label, device=device)
+
+    # # Create dataset
+    # data_train = CDR3Dataset(settings = settings, train=True, label="num_label",tokenizer=tokenizer)
+    # data_test = CDR3Dataset(settings = settings, train=False, label="num_label",tokenizer=tokenizer)
     
     # Create dataloader
-    train_loader = DataLoader(dataset=data_train,
+    train_loader = DataLoader(dataset=data_train_enc,
                               batch_size=settings["param"]["batch_size"],
                               shuffle=True)
-    test_loader = DataLoader(dataset=data_test,
+    test_loader = DataLoader(dataset=data_test_enc,
                             batch_size=settings["param"]["batch_size"],
                             shuffle=True)
     
@@ -105,10 +122,11 @@ def main():
         max_position_embeddings=514,
         num_attention_heads=12,
         num_hidden_layers=6,
-        type_vocab_size=1,
-        output_hidden_states=True
+        output_hidden_states=True,
+        device=device, 
+        problem_type="single_label_classification"
     )
-    model = RobertaForSequenceClassification(model_config)
+    model = RobertaForSequenceClassification(model_config).to(device)
     
     # Define Training Arguments
     training_args = TrainingArguments(
@@ -122,15 +140,14 @@ def main():
         num_train_epochs=settings["param"]["n_epochs"],
         load_best_model_at_end=True
     )
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     
     # Define Trainer
     trainer_model = Trainer(
         # data_collator=tokenizer.encode,
         model=model,
         args=training_args,
-        train_dataset=data_train,
-        eval_dataset=data_test
+        train_dataset=data_train_enc,
+        eval_dataset=data_test_enc
     )
     
     # Train 
