@@ -2,6 +2,7 @@ from operator import index
 import numpy as np
 import pandas as pd 
 import json
+import tokenizers
 import torch
 
 from sklearn.model_selection import train_test_split
@@ -71,7 +72,10 @@ def tokenization_pipeline(settings:dict) -> None:
     # Train on data 
     tokenizer.train(files=settings["file"]["tokenizer_data"], min_frequency = 2)
     tokenizer.save_model(settings["dir"]["Resources"])
-
+    tokenizer.save(settings["file"]["tokenizer"]) 
+    
+    return tokenizer
+    
 def main():
     
     # Load settings 

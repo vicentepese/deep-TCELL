@@ -12,6 +12,7 @@
         "tokenizer_data":"Resources/token_train_dict.txt",
         "tokenizer_merge":"Resources/merges.txt",
         "tokenizer_vocab":"Resources/vocab.json",
+        "tokenizer":"Resources/tokenizer.json",
         "TCR_data":"Data/TCR_data.csv",
         "train_data":"Data/train_data.csv", 
         "test_data":"Data/test_data.csv"
@@ -23,7 +24,7 @@
 
     "param":{
         "test_split":0.7, 
-        "batch_size":6,
+        "batch_size":8,
         "learning_rate":5e-5,
         "weight_decay":0,
         "n_epochs":100

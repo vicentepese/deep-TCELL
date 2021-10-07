@@ -54,7 +54,7 @@ class CDR3abEncoders(Dataset):
     
     # TODO: bottleneck here in self.encodings, running over it all the time
     def __getitem__(self, idx:int=None) -> dict:
-        item = {key: torch.tensor(val[idx]).to(self.device) for key, val in self.encodings.items()}
+        item = {key: torch.tensor(val[idx]).to(self.device).unsqueeze(1) for key, val in self.encodings.items()}
         label_idx = self.labels[idx]
         label = np.zeros(shape = (len(self.labels_unique)))
         label[label_idx] = 1
@@ -143,7 +143,6 @@ def main():
     
     # Define Trainer
     trainer_model = Trainer(
-        # data_collator=tokenizer.encode,
         model=model,
         args=training_args,
         train_dataset=data_train_enc,
