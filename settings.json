@@ -3,7 +3,8 @@
         "Data":"./Data/",
         "Resources":"./Resources/",
         "utils":"./utils", 
-        "Outputs":"./Outputs/"
+        "Outputs":"./Outputs/",
+        "tokenizer":"tokenizer"
     },
 
     "file":{
@@ -24,7 +25,7 @@
 
     "param":{
         "test_split":0.7, 
-        "batch_size":8,
+        "batch_size":4,
         "learning_rate":5e-5,
         "weight_decay":0,
         "n_epochs":100

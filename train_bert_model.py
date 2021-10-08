@@ -2,9 +2,12 @@ from re import M
 import numpy as np 
 import pandas as pd 
 import json
+import os
 from pandas.io.parsers import read_csv
 import tokenizers 
 import torch
+from tqdm import tqdm
+from torch.nn.modules import padding
 
 from train_tokenizer import get_token_train_data, tokenization_pipeline
 
@@ -16,14 +19,14 @@ from tokenizers import pre_tokenizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.implementations import ByteLevelBPETokenizer
-from transformers import DistilBertModel, TrainingArguments, Trainer, RobertaConfig
+from transformers import TrainingArguments, Trainer, RobertaConfig, RobertaTokenizerFast, RobertaModel,RobertaTokenizer
 from transformers.tokenization_utils import PreTrainedTokenizer, PreTrainedTokenizerBase
 
 from sklearn.metrics import accuracy_score
 
 class CDR3Dataset(Dataset):
     
-    def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None) -> None:
+    def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, max_len:int=256) -> None:
         cols = ["num_label", "activatedby_HA", "activatedby_NP", "activtedby_HCRT", "activatedby_any"]
         
         if label not in cols:
@@ -40,13 +43,20 @@ class CDR3Dataset(Dataset):
         self.data = pd.read_csv(self.path_to_data)
         self.labels = np.unique(self.data[[self.label]])
         self.n_labels = len(self.labels)
+        self.max_len = max_len
         
         self.tokenizer = tokenizer
         
     def __getitem__(self, index:int):
-        encodings = self.tokenizer.encode(self.data.CDR3ab[index])
+        encodings = self.tokenizer.encode_plus(self.data.CDR3ab[index],
+            None,
+            add_special_tokens=True,
+            max_length=self.max_len,
+            pad_to_max_length=True,
+            return_token_type_ids=True,
+            truncation=True)
         item = {
-            "ids": tensor(encodings.ids, dtype=torch.long),
+            "ids": tensor(encodings.input_ids, dtype=torch.long),
             "attention_mask": tensor(encodings.attention_mask,dtype=torch.long),
             "target":tensor(self.data[self.label][index],dtype=torch.long)
         }        
@@ -61,7 +71,7 @@ class Net(nn.Module):
       super(Net, self).__init__()
       self.n_labels = n_labels
       
-      self.l1 = DistilBertModel.from_pretrained("distilbert-base-uncased")
+      self.l1 = RobertaModel.from_pretrained("roberta-base")
       self.pre_classifier = nn.Linear(768,768)
       self.dropout = nn.Dropout(0.1)
       self.classifier = nn.Linear(768, self.n_labels)
@@ -99,10 +109,13 @@ def main():
     # tokenizer.normalizer = normalizer
     # tokenizer.pre_tokenizer = pre_tokenizer
     
-    # Create tokenizer
-    get_token_train_data(settings)
-    tokenizer = tokenization_pipeline(settings)
-    tokenizer.enable_truncation(max_length=512)
+    # # Create tokenizer
+    # get_token_train_data(settings)
+    # tokenizer = tokenization_pipeline(settings)
+    # tokenizer.enable_truncation(max_length=512)
+    
+    # Create tokenizer 
+    tokenizer = RobertaTokenizer.from_pretrained(os.path.abspath("tokenizer"))
 
     # Create training and test dataset
     train_data = CDR3Dataset(settings,train=True, label="num_label", tokenizer=tokenizer)
@@ -127,15 +140,16 @@ def main():
     # Initialize training routine 
     tr_loss, tst_loss = [], []
     tr_acc, tst_acc = [], []
-    n_correct = []
     
     def calcuate_accu(big_idx, targets):
         n_correct = (big_idx==targets).sum().item()
         return n_correct
     
     # Training routine 
-    for epoch in range(settings["param"]["n_epochs"]):
+    for epoch in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
+        tr_loss, tst_loss = [], []
+        tr_acc, tst_acc = [], []
         for data in train_dataloader:
             ids = data["ids"].to(device)
             attention_mask = data["attention_mask"].to(device)
@@ -143,11 +157,13 @@ def main():
             
             output=model(ids, attention_mask)
             loss = loss_function(output, targets)
-            tr_loss += loss.cpu().detach().numpy()
+            tr_loss += [loss.cpu().detach().numpy()]
             big_val, big_idx = torch.max(output.data, dim=1)
-            n_correct += calcuate_accu(big_idx, targets)
-            tr_acc = calcuate_accu(big_idx, targets)/len(targets)
-    
+            n_correct = calcuate_accu(big_idx, targets)
+            tr_acc += [(n_correct*100)/targets.size(0)]
+        print("Training Accuracy:" + str(np.mean(tr_acc)))    
+        print("Training Loss:" + str(np.mean(tr_loss)))    
+
     
 
 if __name__ == "__main__":

@@ -71,8 +71,7 @@ def tokenization_pipeline(settings:dict) -> None:
     
     # Train on data 
     tokenizer.train(files=settings["file"]["tokenizer_data"], min_frequency = 2)
-    tokenizer.save_model(settings["dir"]["Resources"])
-    tokenizer.save(settings["file"]["tokenizer"]) 
+    tokenizer.save_model(settings["dir"]["tokenizer"])
     
     return tokenizer
     
