@@ -7,7 +7,6 @@ from pandas.io.parsers import read_csv
 import tokenizers 
 import torch
 from tqdm import tqdm
-from torch.nn.modules import padding
 import transformers
 
 from train_tokenizer import get_token_train_data, tokenization_pipeline
@@ -27,9 +26,8 @@ from sklearn.metrics import accuracy_score
 
 class CDR3Dataset(Dataset):
     
-    def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None) -> None:
+    def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, equal:bool=False) -> None:
         cols = ["num_label", "activatedby_HA", "activatedby_NP", "activtedby_HCRT", "activatedby_any"]
-        
         if label not in cols:
             raise ValueError("Invalid label type. Expected one of %s" % cols)
         else: 
@@ -42,6 +40,11 @@ class CDR3Dataset(Dataset):
             
         self.path_to_data = path_to_data
         self.data = pd.read_csv(self.path_to_data)
+        if equal == True:
+            min_sample=np.min(self.data[self.label].value_counts()) 
+            data_pos, data_neg = self.data[self.data[self.label]==1].sample(min_sample), self.data[self.data[self.label]==0].sample(min_sample)
+            self.data = pd.concat([data_pos, data_neg], ignore_index=True)
+        
         self.labels = np.unique(self.data[[self.label]])
         self.n_labels = len(self.labels)
         self.max_len = self.data.CDR3ab.str.len().max()
@@ -53,7 +56,7 @@ class CDR3Dataset(Dataset):
             None,
             add_special_tokens=True,
             max_length=self.max_len,
-            pad_to_max_length=True,
+            padding="max_len",
             return_token_type_ids=True,
             truncation=True)
         item = {
@@ -109,9 +112,9 @@ def main():
     tokenizer = RobertaTokenizer.from_pretrained(os.path.abspath("tokenizer"))
 
     # Create training and test dataset
-    train_data = CDR3Dataset(settings,train=True, label="num_label", tokenizer=tokenizer)
-    test_data =CDR3Dataset(settings, train=False,label="num_label", tokenizer=tokenizer)
-    max_len_seq = train_data.data.CDR3ab.str.len().max()
+    dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
+    train_data = CDR3Dataset(settings,train=True, equal=True, **dataset_params)
+    test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
     # Crate dataloaders
     loader_params = {'batch_size': settings["param"]["batch_size"],
@@ -121,14 +124,8 @@ def main():
     train_dataloader = DataLoader(train_data, **loader_params)
     test_dataloader = DataLoader(test_data, **loader_params)
     
-    # Create model configuration
-    # model_config = RobertaConfig(vocab_size = tokenizer.vocab_size,
-    #                              hidden_size = train_data.max_len,
-    #                              num_attention_heads = 35,
-    #                              num_hidden_layers = 12,
-    #                              problem_type="multi_label_classification")
-    model_config = RobertaConfig(vocab_size = 3000,
-                                hidden_size = 768,
+    model_config = RobertaConfig(vocab_size = 2181,
+                                hidden_size = 960,
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
                                 problem_type="multi_label_classification")
