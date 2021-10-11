@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import tokenizers 
 import torch
+import os
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -11,7 +12,7 @@ from tokenizers import pre_tokenizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.implementations import ByteLevelBPETokenizer
-from transformers import RobertaForSequenceClassification, TrainingArguments, Trainer,RobertaConfig
+from transformers import RobertaForSequenceClassification, RobertaConfig, RobertaTokenizer, RobertaForMultipleChoice, TrainingArguments, Trainer
 
 # Test libs
 class CDR3Dataset(Dataset):
@@ -54,12 +55,11 @@ class CDR3abEncoders(Dataset):
     
     # TODO: bottleneck here in self.encodings, running over it all the time
     def __getitem__(self, idx:int=None) -> dict:
-        item = {key: torch.tensor(val[idx]).to(self.device).unsqueeze(1) for key, val in self.encodings.items()}
-        label_idx = self.labels[idx]
-        label = np.zeros(shape = (len(self.labels_unique)))
-        label[label_idx] = 1
-        item["labels"] = torch.tensor(label).to(self.device)
-        # item["labels"] = torch.tensor(self.labels[idx]).to(self.device)
+        item = {"input_ids": torch.tensor(self.encodings["input_ids"][idx]).to(self.device),
+                "attention_mask": torch.tensor(self.encodings["attention_mask"][idx]).to(self.device)}
+        self.label = np.zeros(len(self.labels_unique))
+        self.label[self.labels[idx]] = 1
+        item["labels"] = torch.tensor(self.label).to(self.device)
         return item
     
     def __len__(self):
@@ -86,7 +86,7 @@ def main():
     pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
     
     # Create Tokenizer (transformers tokenizer giving problems)
-    tokenizer = ByteLevelBPETokenizer(vocab=settings["file"]["tokenizer_vocab"], merges=settings["file"]["tokenizer_merge"])
+    tokenizer = RobertaTokenizer.from_pretrained(os.path.abspath("tokenizer"))
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
     
@@ -95,14 +95,12 @@ def main():
     test_df = pd.read_csv(settings["file"]["test_data"])
     
     # Parse encoders and labels
-    train_encodings, train_label = tokenizer.encode_batch(list(train_df.CDR3ab)), train_df.num_label
-    test_encodings, test_label = tokenizer.encode_batch(test_df.CDR3ab), test_df.num_label
-    data_train, data_test = {"input_ids": [dic.ids for dic in train_encodings]}, {"input_ids": [dic.ids for dic in test_encodings]}
-    data_train["attention_mask"], data_test["attention_mask"] = [dic.attention_mask for dic in train_encodings], [dic.attention_mask for dic in test_encodings]
+    train_encodings, train_label = tokenizer.batch_encode_plus(list(train_df.CDR3ab), padding='longest', truncation=True), train_df.num_label
+    test_encodings, test_label = tokenizer.batch_encode_plus(test_df.CDR3ab, padding='longest', truncation=True), test_df.num_label
     
     # Create CDR3abEncoding
-    data_train_enc = CDR3abEncoders(encodings=data_train, labels=train_label, device=device)
-    data_test_enc = CDR3abEncoders(encodings=data_test, labels=test_label, device=device)
+    data_train_enc = CDR3abEncoders(encodings=train_encodings, labels=train_label, device=device)
+    data_test_enc = CDR3abEncoders(encodings=test_encodings, labels=test_label, device=device)
 
     # # Create dataset
     # data_train = CDR3Dataset(settings = settings, train=True, label="num_label",tokenizer=tokenizer)
@@ -118,15 +116,16 @@ def main():
     
     # Define model
     model_config = RobertaConfig(
-        vocab_size = tokenizer.get_vocab_size(),
+        vocab_size = tokenizer.vocab_size,
         max_position_embeddings=514,
         num_attention_heads=12,
         num_hidden_layers=6,
         output_hidden_states=True,
         device=device, 
-        problem_type="single_label_classification"
+        out_features=6
     )
     model = RobertaForSequenceClassification(model_config).to(device)
+    model.classifier.out_proj = torch.nn.Linear(in_features=768, out_features=6, bias=True)
     
     # Define Training Arguments
     training_args = TrainingArguments(
