@@ -68,6 +68,7 @@ def tokenization_pipeline(settings:dict) -> None:
     tokenizer = ByteLevelBPETokenizer()
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
+    tokenizer.enable_padding(length=39)
     
     # Train on data 
     tokenizer.train(files=settings["file"]["tokenizer_data"], min_frequency = 2)

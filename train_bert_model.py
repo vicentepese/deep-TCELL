@@ -1,37 +1,44 @@
-from re import M
+
 import numpy as np 
 import pandas as pd 
 import json
 import os
-from pandas.io.parsers import read_csv
 import tokenizers 
 import torch
-from tqdm import tqdm
 import transformers
-
-from train_tokenizer import get_token_train_data, tokenization_pipeline
+from tqdm import tqdm
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
 
-from tokenizers import Encoding, normalizers
+from transformers import  RobertaConfig, RobertaModel, RobertaTokenizer
+from tokenizers.implementations import ByteLevelBPETokenizer
 from tokenizers import pre_tokenizers
+from tokenizers import normalizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
-from tokenizers.implementations import ByteLevelBPETokenizer
-from transformers import TrainingArguments, Trainer, RobertaConfig, RobertaTokenizerFast, RobertaModel, RobertaTokenizer
-from transformers.tokenization_utils import PreTrainedTokenizer, PreTrainedTokenizerBase
 
-from sklearn.metrics import accuracy_score
+def init_weights(layer:torch.nn) -> torch.nn.Linear:
+    """init_weights [Initializes weight of Linear layers of he model]
 
+    Args:
+        layer (torch.nn): [Layer of the model]. Defaults to False.
+    """
+    if isinstance(layer, nn.Linear):
+        nn.init.xavier_uniform(layer.weight)
+        layer.bias.data.fill_(0.01)
+        
+            
 class CDR3Dataset(Dataset):
     
     def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, equal:bool=False) -> None:
-        cols = ["num_label", "activatedby_HA", "activatedby_NP", "activtedby_HCRT", "activatedby_any"]
+        cols = ["num_label", "activatedby_HA", "activatedby_NP", "activatedby_HCRT", "activated_any"]
         if label not in cols:
             raise ValueError("Invalid label type. Expected one of %s" % cols)
         else: 
             self.label = label
+        if equal and label == "num_label":
+            raise ValueError("Equal size sets only allowed for binary classifications. num_label is multiclass.")
         
         if train == True:
             path_to_data = settings["file"]["train_data"] 
@@ -42,7 +49,8 @@ class CDR3Dataset(Dataset):
         self.data = pd.read_csv(self.path_to_data)
         if equal == True:
             min_sample=np.min(self.data[self.label].value_counts()) 
-            data_pos, data_neg = self.data[self.data[self.label]==1].sample(min_sample), self.data[self.data[self.label]==0].sample(min_sample)
+            data_pos = self.data[self.data[self.label]==1].sample(min_sample)
+            data_neg = self.data[self.data[self.label]==0].sample(min_sample)
             self.data = pd.concat([data_pos, data_neg], ignore_index=True)
         
         self.labels = np.unique(self.data[[self.label]])
@@ -52,18 +60,26 @@ class CDR3Dataset(Dataset):
         self.tokenizer = tokenizer
         
     def __getitem__(self, index:int):
-        encodings = self.tokenizer.encode_plus(self.data.CDR3ab[index],
-            None,
-            add_special_tokens=True,
-            max_length=self.max_len,
-            padding="max_len",
-            return_token_type_ids=True,
-            truncation=True)
+        # encodings = self.tokenizer.encode_plus(self.data.CDR3ab[index],
+        #     None,
+        #     add_special_tokens=True,
+        #     max_length=self.max_len,
+        #     padding="max_length",
+        #     return_token_type_ids=True,
+        #     truncation=True)
+        # item = {
+        #     "ids": tensor(encodings.input_ids, dtype=torch.long),
+        #     "attention_mask": tensor(encodings.attention_mask,dtype=torch.long),
+        #     "target":tensor(self.data[self.label][index],dtype=torch.long)
+        # }       
+        self.tokenizer.enable_padding(length=self.max_len)
+        encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
         item = {
-            "ids": tensor(encodings.input_ids, dtype=torch.long),
-            "attention_mask": tensor(encodings.attention_mask,dtype=torch.long),
-            "target":tensor(self.data[self.label][index],dtype=torch.long)
-        }        
+            "ids":tensor(encodings.ids, dtype=torch.long),
+            "attention_mask": tensor(encodings.attention_mask, dtype=torch.long),
+            "target":tensor(self.data[self.label][index], dtype=torch.long)
+        }
+        
         return item
 
     def __len__(self):
@@ -85,13 +101,13 @@ class Net(nn.Module):
       
     def forward(self, input_ids:tensor, attention_mask:tensor) -> tensor:
         output_l = self.l1(input_ids=input_ids, attention_mask=attention_mask)
-        hidden_state = output_l[0]
+        _ = output_l[0]
         pooler = output_l.pooler_output
         pooler = self.pre_classifier(pooler)
-        pooler = nn.ReLU()(pooler)
+        pooler = nn.Tanh()(pooler)
         pooler = self.dropout(pooler)
-        pooler = self.classifier(pooler)
-        output = nn.functional.softmax(pooler, dim=1)
+        output = self.classifier(pooler)
+        output = nn.functional.softmax(output, dim=1)
         return output 
 
 def main():
@@ -108,8 +124,15 @@ def main():
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
     
-    # Create tokenizer 
-    tokenizer = RobertaTokenizer.from_pretrained(os.path.abspath("tokenizer"))
+    # # Create tokenizer 
+    # tokenizer = RobertaTokenizer.from_pretrained(os.path.abspath("tokenizer"))
+    
+    # Create tonekizer from tokenizers library 
+    normalizer = normalizers.Sequence([Lowercase(), NFD()])
+    pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
+    tokenizer = ByteLevelBPETokenizer(settings["file"]["tokenizer_vocab"], settings["file"]["tokenizer_merge"])
+    tokenizer.normalizer = normalizer
+    tokenizer.pre_tokenizer = pre_tokenizer
 
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
@@ -133,6 +156,9 @@ def main():
     # Create the model 
     model = Net(n_labels=train_data.n_labels, model_config=model_config)
     model.to(device)
+    
+    # Initialize model weights
+    model.apply(init_weights)
     
     # Create the loss function and optimizer
     loss_function = nn.CrossEntropyLoss()

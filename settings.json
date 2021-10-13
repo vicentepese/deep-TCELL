@@ -20,7 +20,7 @@
     }, 
 
     "database":{
-        "label":"activatedby_HA"
+        "label":"activatedby_NP"
     },
 
     "param":{
