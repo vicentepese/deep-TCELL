@@ -20,14 +20,15 @@
     }, 
 
     "database":{
-        "label":"activatedby_NP"
+        "label":"multilabel"
     },
 
     "param":{
         "test_split":0.7, 
+        "equal":"False",
         "batch_size":16,
-        "learning_rate":5e-5,
+        "learning_rate":1e-5,
         "weight_decay":0,
-        "n_epochs":10
+        "n_epochs":20
     }
 }
