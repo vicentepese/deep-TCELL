@@ -32,7 +32,7 @@ def get_token_train_data(settings:dict) -> list():
     tcr_df.to_csv(settings["file"]["TCR_data"], header=True, index=False)
 
     # Split train test and merge
-    X_train, X_test = train_test_split(tcr_df, test_size=settings["param"]["test_split"])
+    X_test, X_train = train_test_split(tcr_df, test_size=settings["param"]["test_split"])
     tcr_df_set = {"train":X_train, "test":X_test}
     tcr_df_path = {"train": settings["file"]["train_data"], "test": settings["file"]["test_data"]}
     

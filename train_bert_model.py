@@ -6,6 +6,7 @@ import os
 import tokenizers 
 import torch
 from torch._C import Value
+from torch.nn.modules import dropout
 import transformers
 from tqdm import tqdm
 
@@ -127,7 +128,7 @@ class Net(nn.Module):
       self.l1 = RobertaModel(self.config)
       self.l1_out_dim = self.l1.pooler.dense.out_features  
       self.pre_classifier = nn.Linear(self.l1_out_dim,self.l1_out_dim)
-      self.dropout = nn.Dropout(0.6)
+      self.dropout = nn.Dropout(0.4)
       self.classifier = nn.Linear(self.l1_out_dim, self.n_labels)
       
     def forward(self, input_ids:tensor, attention_mask:tensor) -> tensor:
@@ -175,11 +176,12 @@ def main():
     train_dataloader = DataLoader(train_data, **loader_params)
     test_dataloader = DataLoader(test_data, **loader_params)
     
-    model_config = RobertaConfig(vocab_size = 2181,
+    model_config = RobertaConfig(vocab_size = 4050,
                                 hidden_size = 768,
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
-                                problem_type="multi_label_classification")
+                                problem_type="multi_label_classification",
+                                hidden_dropout_prob=0.4)
     
     # Create the model 
     model = Net(n_labels=train_data.n_labels, model_config=model_config)
@@ -252,6 +254,7 @@ def main():
             output=model(ids, attention_mask)
 
             # Compute loss
+            loss = loss_function(output, targets.to(torch.float32))
             tst_loss += [loss.cpu().detach().numpy()]
             
              # Compoute multi label accuracies
