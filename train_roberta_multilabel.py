@@ -2,12 +2,11 @@
 import numpy as np 
 import pandas as pd 
 import json
-import os
 import tokenizers 
-import torch
-from torch._C import Value
-from torch.nn.modules import dropout
 import transformers
+import torch
+from models.roberta_multilabel import Net
+
 from tqdm import tqdm
 
 from torch.utils.data import DataLoader, Dataset
@@ -19,6 +18,8 @@ from tokenizers import pre_tokenizers
 from tokenizers import normalizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
+
+from sklearn.metrics import recall_score, precision_score
 
 def init_weights(layer:torch.nn) -> torch.nn.Linear:
     """init_weights [Initializes weight of Linear layers of he model]
@@ -65,7 +66,25 @@ def multilabelaccuracy(out_label:torch.tensor, targets:torch.tensor) -> np.array
     
     return torch.sum(out_label==targets)/(np.sum([len(target) for target in targets]))
     
+def get_recall_precision(y_true, y_pred) -> list:
+    """get_recall [Computes recall for each of the labels (columns)]
 
+    Args:
+        y_true ([type]): [True labels / targets]
+        y_pred ([type]): [Predicted labels]
+
+    Returns:
+        np.array: [description]
+    """
+    y_true = list(map(list, zip(*y_true.tolist())))
+    y_pred = list(map(list, zip(*y_pred.tolist())))
+    
+    recall, precision = [], []
+    for i in range(len(y_true)):
+        recall.append(recall_score(y_true[i], y_pred[i], zero_division=0))
+        precision.append(precision_score(y_true[i], y_pred[i], zero_division=0))
+    return recall, precision
+        
             
 class CDR3Dataset(Dataset):
     
@@ -118,30 +137,6 @@ class CDR3Dataset(Dataset):
     def __len__(self):
         return len(self.data)
     
-class Net(nn.Module):
-    
-    def __init__(self, n_labels:int=None, model_config:transformers.RobertaConfig=None):
-      super(Net, self).__init__()
-      self.n_labels = n_labels
-      self.config = model_config
-      
-      self.l1 = RobertaModel(self.config)
-      self.l1_out_dim = self.l1.pooler.dense.out_features  
-      self.pre_classifier = nn.Linear(self.l1_out_dim,self.l1_out_dim)
-      self.dropout = nn.Dropout(0.4)
-      self.classifier = nn.Linear(self.l1_out_dim, self.n_labels)
-      
-    def forward(self, input_ids:tensor, attention_mask:tensor) -> tensor:
-        output_l = self.l1(input_ids=input_ids, attention_mask=attention_mask)
-        _ = output_l[0]
-        pooler = output_l.pooler_output
-        pooler = self.pre_classifier(pooler)
-        pooler = nn.Tanh()(pooler)
-        pooler = self.dropout(pooler)
-        output = self.classifier(pooler)
-        output = torch.sigmoid(output)
-        return output 
-
 def main():
     
     # Load settings 
@@ -181,7 +176,7 @@ def main():
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
                                 problem_type="multi_label_classification",
-                                hidden_dropout_prob=0.4)
+                                hidden_dropout_prob=0.1)
     
     # Create the model 
     model = Net(n_labels=train_data.n_labels, model_config=model_config)
@@ -193,11 +188,7 @@ def main():
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
-    
-    # Initialize training routine 
-    tr_loss, tst_loss = [], []
-    tr_acc, tst_acc = [], []
-    
+        
     def calcuate_accu(big_idx, targets):
         n_correct = (big_idx==targets).sum().item()
         return n_correct
@@ -207,6 +198,8 @@ def main():
         model.train()
         tr_loss, tst_loss = [], []
         tr_acc, tst_acc = [], []
+        tr_recall, tst_recall = [], []
+        tr_precision, tst_precision = [], []
         for data in train_dataloader:
             
             # Prepare data
@@ -236,10 +229,26 @@ def main():
                 big_val, big_idx = torch.max(output.data, dim=1)
                 n_correct = calcuate_accu(big_idx, targets)
                 tr_acc += [(n_correct*100)/targets.size(0)]
+            
+            # Compute recall and precision
+            if settings["database"]["label"] == "multilabel":
+                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+                tr_recall.append(recall_epoch)
+                tr_precision.append(precision_epoch)
 
         # Verbose
         print("Training Accuracy:" + str(np.mean(tr_acc)))    
         print("Training Loss:" + str(np.mean(tr_loss)))
+        
+        # Verbose recall and precision
+        if settings["database"]["label"] == "multilabel":
+            for label, index in zip(["HA", "NP", "HCRT"], range(3)):
+                recall_label = np.mean([val[index] for val in tr_recall])
+                precision_label = np.mean([val[index] for val in tr_precision])
+                print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
+                print("Training recall for " + label + " " + str(np.round(precision_label, decimals=3)))
+        
+
         
         # Test 
         model.eval()
