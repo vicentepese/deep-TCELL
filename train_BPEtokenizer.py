@@ -71,8 +71,8 @@ def tokenization_pipeline(settings:dict) -> None:
     tokenizer.enable_padding(length=39)
     
     # Train on data 
-    tokenizer.train(files=settings["file"]["tokenizer_data"], min_frequency = 2)
-    tokenizer.save_model(settings["dir"]["BPEtokenizer"])
+    tokenizer.train(files=settings["file"]["BPEtokenizer_data"], min_frequency = 2)
+    tokenizer.save_model(settings["tokenizer"]["BPE"])
     
     return tokenizer
     
