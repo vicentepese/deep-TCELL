@@ -3,8 +3,7 @@
         "Data":"./Data/",
         "Resources":"./Resources/",
         "utils":"./utils", 
-        "Outputs":"./Outputs/",
-        "tokenizer":"tokenizer"
+        "Outputs":"./Outputs/"
     },
 
     "file":{
@@ -21,6 +20,10 @@
 
     "database":{
         "label":"multilabel"
+    },
+
+    "tokenizer":{
+        "BPE":"tokenizer/BPE"
     },
 
     "param":{
