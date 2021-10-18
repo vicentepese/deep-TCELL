@@ -110,13 +110,13 @@ def main():
     
     model_config = RobertaConfig(vocab_size = 4050,
                                 hidden_size = 768,
-                                num_attention_heads = 12,
-                                num_hidden_layers = 12,
+                                num_attention_heads = 1,
+                                num_hidden_layers = 2,
                                 problem_type="multi_label_classification",
                                 hidden_dropout_prob=0.1)
     
     # Create the model 
-    model = Net(n_labels=train_data.n_labels, model_config=model_config)
+    model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
     model.to(device)
     
     # Initialize model weights
