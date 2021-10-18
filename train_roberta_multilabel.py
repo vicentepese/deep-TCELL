@@ -91,7 +91,7 @@ def main():
     # Create tonekizer from tokenizers library 
     normalizer = normalizers.Sequence([Lowercase(), NFD()])
     pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
-    tokenizer = ByteLevelBPETokenizer(settings["file"]["tokenizer_vocab"], settings["file"]["tokenizer_merge"])
+    tokenizer = ByteLevelBPETokenizer(settings["tokenizer"]["BPE_vocab"], settings["tokenizer"]["BPE_merge"])
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
 
@@ -183,7 +183,7 @@ def main():
                 recall_label = np.mean([val[index] for val in tr_recall])
                 precision_label = np.mean([val[index] for val in tr_precision])
                 print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
-                print("Training recall for " + label + " " + str(np.round(precision_label, decimals=3)))
+                print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
         
 
         
