@@ -1,17 +1,17 @@
-from operator import index
-import numpy as np
+import numpy as np 
 import pandas as pd 
+import torch 
 import json
-import torch
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from tokenizers.implementations import ByteLevelBPETokenizer
-from tokenizers import pre_tokenizers
-from tokenizers import normalizers
+from tokenizers import Tokenizer
+from tokenizers.trainers import WordLevelTrainer
+from tokenizers.models import WordLevel
+from tokenizers import pre_tokenizers, normalizers
 from tokenizers.normalizers import Lowercase, NFD
-from tokenizers.pre_tokenizers import ByteLevel
+from tokenizers.pre_tokenizers import Whitespace
 
 def get_token_train_data(settings:dict) -> list():
     """get_token_train_data [Reads data, splits train and test, writes them, and 
@@ -47,11 +47,10 @@ def get_token_train_data(settings:dict) -> list():
         data_pre.to_csv(tcr_df_path[key], index=False, header=True)
             
     # Write file to train tokenizer 
-    with open(settings["file"]["BPEtokenizer_data"],"w") as outFile:
+    with open(settings["file"]["WLtokenizer_data"],"w") as outFile:
         for cdr in X_train.CDR3ab:
-            outFile.write(cdr + "\n")
-                
-    
+            outFile.write(" ".join(list(cdr)) + "\n")
+            
 def tokenization_pipeline(settings:dict) -> None:
     """tokenization_pipeline [Reads the training data and trains the tokenizer]
 
@@ -61,31 +60,32 @@ def tokenization_pipeline(settings:dict) -> None:
     
     # Create normalizer and pre-tokenizer
     normalizer = normalizers.Sequence([Lowercase(), NFD()])
-    pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
+    pre_tokenizer = pre_tokenizers.Sequence([Whitespace()])
     
     # Create tokenizer
-    tokenizer = ByteLevelBPETokenizer()
-    tokenizer.normalizer = normalizer
+    tokenizer = Tokenizer(WordLevel())
+    trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
     tokenizer.pre_tokenizer = pre_tokenizer
-    tokenizer.enable_padding(length=39)
+    tokenizer.normalizer = normalizer
+    tokenizer.enable_padding()
     
     # Train on data 
-    tokenizer.train(files=settings["file"]["BPEtokenizer_data"], min_frequency = 2)
-    tokenizer.save_model(settings["tokenizer"]["BPE"])
-    
+    tokenizer.train(files=[settings["file"]["WLtokenizer_data"]], trainer=trainer)
+    tokenizer.save(settings["tokenizer"]["WL"])
     return tokenizer
     
+
 def main():
-    
+
     # Load settings 
-    with open("settings.json","r") as inFile:
+    with open("settings.json", 'r') as inFile:
         settings = json.load(inFile)
         
-    # Set random seeds
+    # Set random seeds 
     seed_nr = 1964
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
-        
+    
     # Create file with tokenizer training data
     get_token_train_data(settings)
     

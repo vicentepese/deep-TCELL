@@ -9,10 +9,8 @@
     "file":{
         "TCR_activated":"Resources/TCR_activated_ml.csv",
         "TCR_negative":"Resources/TCR_negative_ml.csv",
-        "BPEtokenizer_data":"Resources/token_train_dict.txt",
-        "tokenizer_merge":"Resources/merges.txt",
-        "tokenizer_vocab":"Resources/vocab.json",
-        "tokenizer":"Resources/tokenizer.json",
+        "BPEtokenizer_data":"Resources/BPEtoken_train_dict.txt",
+        "WLtokenizer_data":"Resources/WLtoken_train_dict.txt",
         "TCR_data":"Data/TCR_data.csv",
         "train_data":"Data/train_data.csv", 
         "test_data":"Data/test_data.csv"
@@ -25,7 +23,8 @@
     "tokenizer":{
         "BPE":"tokenizer/BPE",
         "BPE_vocab":"tokenizer/BPE/vocab.json",
-        "BPE_merge":"tokenizer/BPE/merges.txt"
+        "BPE_merge":"tokenizer/BPE/merges.txt",
+        "WL":"tokenizer/WL/WL.json"
     },
 
     "param":{
