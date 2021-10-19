@@ -2,7 +2,8 @@
 import numpy as np 
 import pandas as pd 
 import json
-import tokenizers 
+import tokenizers
+from tokenizers import models 
 import transformers
 import torch
 from models.roberta_multilabel import Net
@@ -13,12 +14,12 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
 
-from transformers import  RobertaConfig, RobertaModel
+from transformers import  RobertaConfig
 from tokenizers.implementations import ByteLevelBPETokenizer
-from tokenizers import pre_tokenizers
-from tokenizers import normalizers
+from tokenizers.models import WordLevel
+from tokenizers import pre_tokenizers, normalizers, Tokenizer
 from tokenizers.normalizers import Lowercase, NFD
-from tokenizers.pre_tokenizers import ByteLevel
+from tokenizers.pre_tokenizers import ByteLevel, Whitespace
 
 from sklearn.metrics import recall_score, precision_score
 
@@ -59,12 +60,21 @@ class CDR3Dataset(Dataset):
         self.tokenizer = tokenizer
         
     def __getitem__(self, index:int):
-        self.tokenizer.enable_padding(length=self.max_len)
-        encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
-        item = {
-            "ids":tensor(encodings.ids, dtype=torch.long),
-            "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
-            }
+        if isinstance(self.tokenizer, tokenizers.Tokenizer):
+            self.tokenizer.enable_padding(length=self.max_len)
+            CDR3ab = " ".join(list(self.data.CDR3ab[index]))
+            encodings = self.tokenizer.encode(CDR3ab)
+            item = {
+                "ids":tensor(encodings.ids, dtype=torch.long),
+                "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
+                }
+        else:
+            self.tokenizer.enable_padding(length=self.max_len)
+            encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
+            item = {
+                "ids":tensor(encodings.ids, dtype=torch.long),
+                "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
+                }
         if self.label == "multilabel":
             item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index],dtype =torch.long)
         else:
@@ -87,14 +97,24 @@ def main():
     seed_nr = 1964
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
-  
-    # Create tonekizer from tokenizers library 
-    normalizer = normalizers.Sequence([Lowercase(), NFD()])
-    pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
-    tokenizer = ByteLevelBPETokenizer(settings["tokenizer"]["BPE_vocab"], settings["tokenizer"]["BPE_merge"])
-    tokenizer.normalizer = normalizer
-    tokenizer.pre_tokenizer = pre_tokenizer
 
+    # Create tonekizer from tokenizers library 
+    if settings["param"]["tokenizer"] == "BPE":
+        normalizer = normalizers.Sequence([Lowercase(), NFD()])
+        pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
+        tokenizer = ByteLevelBPETokenizer(settings["tokenizer"]["BPE_vocab"], settings["tokenizer"]["BPE_merge"])
+        tokenizer.normalizer = normalizer
+        tokenizer.pre_tokenizer = pre_tokenizer
+    elif settings["param"]["tokenizer"] == "WL":
+        normalizer = normalizers.Sequence([Lowercase(), NFD()])
+        pre_tokenizer = pre_tokenizers.Sequence([Whitespace()])
+        tokenizer = Tokenizer(WordLevel()).from_file(settings["tokenizer"]["WL"])
+        tokenizer.pre_tokenizer = pre_tokenizer
+        tokenizer.normalizer = normalizer
+        tokenizer.enable_padding()
+    else:
+        raise ValueError("Unknown tokenizer. Tokenizer argument must be BPE or WL.")
+        
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
     train_data = CDR3Dataset(settings,train=True, equal=False, **dataset_params)
@@ -126,9 +146,9 @@ def main():
     loss_function = nn.BCELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
-    def calcuate_accu(big_idx, targets):
-        n_correct = (big_idx==targets).sum().item()
-        return n_correct
+    # def calcuate_accu(big_idx, targets):
+    #     n_correct = (big_idx==targets).sum().item()
+    #     return n_correct
     
     # Training routine 
     for epoch in tqdm(range(settings["param"]["n_epochs"])):
@@ -186,7 +206,6 @@ def main():
                 print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
         
 
-        
         # Test 
         model.eval()
         for data in test_dataloader:

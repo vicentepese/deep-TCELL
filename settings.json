@@ -28,6 +28,7 @@
     },
 
     "param":{
+        "tokenizer":"WL",
         "test_split":0.7, 
         "equal":"False",
         "batch_size":8,
