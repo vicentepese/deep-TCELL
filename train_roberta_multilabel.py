@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd 
 import json
 import tokenizers
-from tokenizers import models 
-import transformers
 import torch
 from models.roberta_multilabel import Net
 from utils.utils import *
@@ -146,9 +144,6 @@ def main():
     loss_function = nn.BCELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
-    # def calcuate_accu(big_idx, targets):
-    #     n_correct = (big_idx==targets).sum().item()
-    #     return n_correct
     
     # Training routine 
     for epoch in tqdm(range(settings["param"]["n_epochs"])):
@@ -183,7 +178,7 @@ def main():
                 out_label = prob2label(output, threshold=1/len(output[0]))
                 tr_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
             else:
-                big_val, big_idx = torch.max(output.data, dim=1)
+                _, big_idx = torch.max(output.data, dim=1)
                 n_correct = calcuate_accu(big_idx, targets)
                 tr_acc += [(n_correct*100)/targets.size(0)]
             

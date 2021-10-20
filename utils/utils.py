@@ -66,4 +66,16 @@ def get_recall_precision(y_true, y_pred) -> list:
         recall.append(recall_score(y_true[i], y_pred[i], zero_division=0))
         precision.append(precision_score(y_true[i], y_pred[i], zero_division=0))
     return recall, precision
-        
+
+def calcuate_accu(big_idx:int, targets:np.array):
+    """calcuate_accu [Calculate accuracy of single-label classification]
+
+    Args:
+        big_idx ([type]): [description]
+        targets ([type]): [description]
+
+    Returns:
+        [type]: [Returns the percentage of single label classification]
+    """
+    n_correct = (big_idx==targets).sum().item()
+    return n_correct
