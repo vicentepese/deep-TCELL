@@ -18,13 +18,14 @@ class Net(nn.Module):
       self.classifier = nn.Linear(self.l1_out_dim, self.n_labels)
       
     def forward(self, input_ids:tensor, attention_mask:tensor, inputs_embeds:bool=False) -> tensor:
-      if inputs_embeds:
+      if inputs_embeds and not input_ids:
           output_l = self.l1(inputs_embeds=input_ids, attention_mask=attention_mask)
           _ = output_l[0]
-      else:
+      elif input_ids and not inputs_embeds:
         output_l = self.l1(input_ids=input_ids, attention_mask=attention_mask)
         _ = output_l[0]
-      output_l = self.l1(input_ids=input_ids, attention_mask=attention_mask)
+      else:
+        raise ValueError("Neither an input embeddings nor input ids were passed to the model.")
       pooler = output_l.pooler_output
       pooler = self.pre_classifier(pooler)
       pooler = nn.Tanh()(pooler)
