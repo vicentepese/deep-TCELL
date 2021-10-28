@@ -6,7 +6,7 @@ from transformers import RobertaModel
 
 class Net(nn.Module):
     
-    def __init__(self, n_labels:int, model_config:transformers.RobertaConfig, classifier_dropout=float):
+    def __init__(self, n_labels:int, model_config:transformers.RobertaConfig, classifier_dropout:float):
       super(Net, self).__init__()
       self.n_labels = n_labels
       self.config = model_config
