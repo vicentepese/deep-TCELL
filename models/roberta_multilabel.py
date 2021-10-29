@@ -17,11 +17,11 @@ class Net(nn.Module):
       self.dropout = nn.Dropout(classifier_dropout)
       self.classifier = nn.Linear(self.l1_out_dim, self.n_labels)
       
-    def forward(self, input_ids:tensor, attention_mask:tensor, inputs_embeds:bool=False) -> tensor:
-      if inputs_embeds and not input_ids:
+    def forward(self, input_ids:tensor, attention_mask:tensor, inputs_embeds:bool=None) -> tensor:
+      if inputs_embeds is not None and input_ids is None:
           output_l = self.l1(inputs_embeds=input_ids, attention_mask=attention_mask)
           _ = output_l[0]
-      elif input_ids and not inputs_embeds:
+      elif input_ids is not None and inputs_embeds is None:
         output_l = self.l1(input_ids=input_ids, attention_mask=attention_mask)
         _ = output_l[0]
       else:

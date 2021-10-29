@@ -9,7 +9,7 @@ from torch.optim import optimizer
 
 from utils.utils import *
 from tqdm import tqdm 
-from models.roberta_multilabel import Net
+from models.robert_embeddings import Net
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor 
@@ -34,17 +34,17 @@ class CDR3EmbeddingDataset(Dataset):
     
     def __getitem__(self, index:int, padding:bool=True) -> dict():
         CDR3ab = list(self.data.CDR3ab[index])
-        embeddings = [tensor(self.embeddings_template[AA]) if AA != "_" else torch.Tensor(self.num_AA) for AA in CDR3ab]
+        embeddings = [tensor(self.embeddings_template[AA]) if AA != "_" else torch.zeros(self.num_AA, dtype=torch.float64) for AA in CDR3ab]
         embeddings = torch.stack(embeddings)     
            
         if padding:
-            embeddings = torch.cat((embeddings, torch.Tensor(self.max_len - embeddings.shape[0], embeddings.shape[1])))
+            embeddings = torch.cat((embeddings, torch.zeros(self.max_len - embeddings.shape[0], embeddings.shape[1], dtype=torch.float64)))
         
         item ={
             "ids": embeddings,
-            "attention_mask": tensor(torch.ones(size = embeddings.shape), dtype=torch.long),
+            "attention_mask": torch.ones(size = embeddings.shape, dtype=torch.float64),
             "target": tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index], 
-                            dtype =torch.long)
+                            dtype=torch.float64)
         }
         return item 
     
@@ -86,15 +86,17 @@ def main():
         hidden_dropout_prob=0.1,
         hidden_size=20,
         max_position_embeddings=512,
-        num_attention_heads=2,
-        num_hidden_layers=2,
+        num_attention_heads=10,
+        num_hidden_layers=10,
         vocab_size=21
     )
     
     # Create model 
-    model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
+    model = Net(n_labels=train_data.n_labels,
+                model_config=model_config, 
+                classifier_drouput=0.1)
     model.to(device)
-    model.double()
+    model = model.double()
     
     # Initialize weights
     model.apply(init_weights)
@@ -118,8 +120,8 @@ def main():
             targets = data["target"].to(device)
             
             # Forward pass 
-            output=model(input_ids=ids, attention_mask=attention_mask, inputs_embeds=True)
-            loss = loss_function(output, targets.to(torch.float32))
+            output=model(input_ids=ids, attention_mask=attention_mask)
+            loss = loss_function(output, targets)
             
             # Compute loss
             tr_loss += [loss.cpu().detach().numpy()]
@@ -172,7 +174,7 @@ def main():
             output=model(ids, attention_mask)
 
             # Compute loss
-            loss = loss_function(output, targets.to(torch.float32))
+            loss = loss_function(output, targets)
             tst_loss += [loss.cpu().detach().numpy()]
             
              # Compoute multi label accuracies

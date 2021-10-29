@@ -127,9 +127,9 @@ def main():
     test_dataloader = DataLoader(test_data, **loader_params)
     
     model_config = RobertaConfig(vocab_size = 4050,
-                                hidden_size = 768,
-                                num_attention_heads = 1,
-                                num_hidden_layers = 2,
+                                hidden_size = 1032,
+                                num_attention_heads = 12,
+                                num_hidden_layers = 12,
                                 problem_type="multi_label_classification",
                                 hidden_dropout_prob=0.1)
     
@@ -144,9 +144,8 @@ def main():
     loss_function = nn.BCELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
-    
     # Training routine 
-    for epoch in tqdm(range(settings["param"]["n_epochs"])):
+    for _ in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
         tr_loss, tst_loss = [], []
         tr_acc, tst_acc = [], []
