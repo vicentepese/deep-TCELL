@@ -48,7 +48,7 @@ class CDR3Dataset(Dataset):
         
         if label == "multilabel":
             self.labels = [0,1]
-            self.n_labels = 3
+            self.n_labels = 4
         else:
             self.labels = np.unique(self.data[[self.label]])
             self.n_labels = len(self.labels)
@@ -74,7 +74,7 @@ class CDR3Dataset(Dataset):
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
         if self.label == "multilabel":
-            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index],dtype =torch.long)
+            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "negative"]].iloc[index],dtype =torch.long)
         else:
             item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
         return item
@@ -138,7 +138,8 @@ def main():
     model.to(device)
     
     # Initialize model weights
-    model.apply(init_weights)
+    if settings['param']['init']:
+        model.apply(init_weights)
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
