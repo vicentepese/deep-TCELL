@@ -7,6 +7,8 @@ import torch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
+from tokenizers import Tokenizer
+from tokenizers.models import BPE
 from tokenizers.implementations import ByteLevelBPETokenizer
 from tokenizers import pre_tokenizers
 from tokenizers import normalizers
@@ -35,16 +37,12 @@ def get_token_train_data(settings:dict) -> list():
     tcr_df_set = {"train":X_train, "test":X_test}
     tcr_df_path = {"train": settings["file"]["train_data"], "test": settings["file"]["test_data"]}
     
-    # Tokenize labels , and create individual lables for HA69 and NP136
+    # Tokenize labels , and create individual labels for each category
     for key in tcr_df_set.keys():
         data_pre = tcr_df_set[key]
-        le = LabelEncoder().fit(data_pre.activated_by)
-        data_pre["num_label"] = le.transform(data_pre.activated_by)
-        data_pre["activatedby_HA"] = data_pre.num_label.apply(lambda x: 1 if x in [0,1,2] else 0)
-        data_pre["activatedby_HCRT"] = data_pre.num_label.apply(lambda x: 1 if x in [1,3,4] else 0)
-        data_pre["activatedby_NP"] = data_pre.num_label.apply(lambda x: 1 if x in [2,4,5] else 0)
-        data_pre["negative"] = data_pre.num_label.apply(lambda x: 1 if x == 6 else 0)
-        data_pre["activated_any"] = data_pre.num_label.apply(lambda x: 1 if x != 6 else 0)
+        data_pre.insert(2, "num_label", LabelEncoder().fit_transform(data_pre.activated_by), True)
+        data_OHE = pd.get_dummies(data_pre.activated_by, prefix="activated_by")
+        data_pre = pd.concat([data_pre, data_OHE], axis=1)
         data_pre.to_csv(tcr_df_path[key], index=False, header=True)
             
     # Write file to train tokenizer 
@@ -65,14 +63,14 @@ def tokenization_pipeline(settings:dict) -> None:
     pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
     
     # Create tokenizer
-    tokenizer = ByteLevelBPETokenizer()
+    tokenizer = Tokenizer(BPE())
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
-    tokenizer.enable_padding(length=39)
+    tokenizer.enable_padding()
     
     # Train on data 
-    tokenizer.train(files=settings["file"]["BPEtokenizer_data"], min_frequency = 2)
-    tokenizer.save_model(settings["tokenizer"]["BPE"])
+    tokenizer.train(files=[settings["file"]["BPEtokenizer_data"]])
+    tokenizer.save(settings["tokenizer"]["BPE"])
     
     return tokenizer
     

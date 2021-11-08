@@ -14,7 +14,7 @@ from torch import nn, tensor
 
 from transformers import  RobertaConfig
 from tokenizers.implementations import ByteLevelBPETokenizer
-from tokenizers.models import WordLevel
+from tokenizers.models import WordLevel, BPE
 from tokenizers import pre_tokenizers, normalizers, Tokenizer
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel, Whitespace
@@ -97,21 +97,21 @@ def main():
     np.random.seed(seed_nr)
 
     # Create tonekizer from tokenizers library 
+    normalizer = normalizers.Sequence([Lowercase(), NFD()])
+
     if settings["param"]["tokenizer"] == "BPE":
-        normalizer = normalizers.Sequence([Lowercase(), NFD()])
         pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
-        tokenizer = ByteLevelBPETokenizer(settings["tokenizer"]["BPE_vocab"], settings["tokenizer"]["BPE_merge"])
-        tokenizer.normalizer = normalizer
-        tokenizer.pre_tokenizer = pre_tokenizer
+        vocab, merges = settings['tokenizer']['BPE_vocab'], settings['tokenizer']['BPE_merge']
+        tokenizer = Tokenizer(BPE().from_file(vocab, merges))
     elif settings["param"]["tokenizer"] == "WL":
-        normalizer = normalizers.Sequence([Lowercase(), NFD()])
         pre_tokenizer = pre_tokenizers.Sequence([Whitespace()])
         tokenizer = Tokenizer(WordLevel()).from_file(settings["tokenizer"]["WL"])
-        tokenizer.pre_tokenizer = pre_tokenizer
-        tokenizer.normalizer = normalizer
-        tokenizer.enable_padding()
     else:
         raise ValueError("Unknown tokenizer. Tokenizer argument must be BPE or WL.")
+    tokenizer.pre_tokenizer = pre_tokenizer
+    tokenizer.normalizer = normalizer
+    tokenizer.enable_padding()
+    
         
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
@@ -143,7 +143,7 @@ def main():
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
+    optimizer = torch.optim.SGD(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
     # Training routine 
     for _ in tqdm(range(settings["param"]["n_epochs"])):
@@ -194,7 +194,7 @@ def main():
         
         # Verbose recall and precision
         if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT"], range(3)):
+            for label, index in zip(["HA", "NP", "HCRT", "negative"], range(3)):
                 recall_label = np.mean([val[index] for val in tr_recall])
                 precision_label = np.mean([val[index] for val in tr_precision])
                 print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
