@@ -9,11 +9,11 @@ from sklearn.preprocessing import LabelEncoder
 
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
-from tokenizers.implementations import ByteLevelBPETokenizer
 from tokenizers import pre_tokenizers
 from tokenizers import normalizers
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
+from tokenizers.trainers import BpeTrainer
 
 def get_token_train_data(settings:dict) -> list():
     """get_token_train_data [Reads data, splits train and test, writes them, and 
@@ -68,9 +68,12 @@ def tokenization_pipeline(settings:dict) -> None:
     tokenizer.pre_tokenizer = pre_tokenizer
     tokenizer.enable_padding()
     
+    # Create Trainer
+    trainer = BpeTrainer(min_frequency=10
+                         )
     # Train on data 
     tokenizer.train(files=[settings["file"]["BPEtokenizer_data"]])
-    tokenizer.save(settings["tokenizer"]["BPE"])
+    tokenizer.save(settings["tokenizer"]["BPE"], trainder=trainer)
     
     return tokenizer
     
