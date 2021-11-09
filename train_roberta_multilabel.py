@@ -97,21 +97,13 @@ def main():
     np.random.seed(seed_nr)
 
     # Create tonekizer from tokenizers library 
-    normalizer = normalizers.Sequence([Lowercase(), NFD()])
-
     if settings["param"]["tokenizer"] == "BPE":
-        pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
-        vocab, merges = settings['tokenizer']['BPE_vocab'], settings['tokenizer']['BPE_merge']
-        tokenizer = Tokenizer(BPE().from_file(vocab, merges))
+        tokenizer = Tokenizer(BPE().from_file(settings["tokenizer"]["BPE"]))
     elif settings["param"]["tokenizer"] == "WL":
-        pre_tokenizer = pre_tokenizers.Sequence([Whitespace()])
         tokenizer = Tokenizer(WordLevel()).from_file(settings["tokenizer"]["WL"])
     else:
         raise ValueError("Unknown tokenizer. Tokenizer argument must be BPE or WL.")
-    tokenizer.pre_tokenizer = pre_tokenizer
-    tokenizer.normalizer = normalizer
-    tokenizer.enable_padding()
-    
+
         
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
