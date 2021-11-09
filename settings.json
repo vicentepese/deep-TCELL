@@ -18,7 +18,7 @@
     }, 
 
     "database":{
-        "label":"multilabel"
+        "label":"activated_by"
     },
 
     "tokenizer":{
@@ -29,8 +29,8 @@
     "param":{
         "tokenizer":"BPE",
         "test_split":0.7, 
-        "equal":"False",
-        "init":"False",
+        "equal":false,
+        "init":false,
         "batch_size":8,
         "learning_rate":1e-5,
         "weight_decay":0,
