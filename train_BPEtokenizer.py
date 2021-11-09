@@ -69,8 +69,8 @@ def tokenization_pipeline(settings:dict) -> None:
     tokenizer.enable_padding()
     
     # Create Trainer
-    trainer = BpeTrainer(min_frequency=10
-                         )
+    trainer = BpeTrainer(min_frequency=10,
+                         special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
     # Train on data 
     tokenizer.train(files=[settings["file"]["BPEtokenizer_data"]])
     tokenizer.save(settings["tokenizer"]["BPE"], trainder=trainer)
