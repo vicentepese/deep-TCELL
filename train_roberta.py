@@ -147,7 +147,7 @@ def main():
         loss_function = nn.CrossEntropyLoss()
     else:    
         loss_function = nn.BCELoss()
-    optimizer = torch.optim.SGD(params=model.parameters(), lr = settings["param"]["learning_rate"])
+    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
     # Training routine 
     for _ in tqdm(range(settings["param"]["n_epochs"])):
@@ -171,7 +171,8 @@ def main():
                 loss = loss_function(output, targets)
                 tr_loss += [loss.cpu().detach().numpy()]
             else:
-                loss = loss_function(output, targets.to(torch.float32))
+                target_ohe = torch.nn.functional.one_hot(targets, 2)
+                loss = loss_function(output, target_ohe.to(torch.float32))
                 tr_loss += [loss.cpu().detach().numpy()]
             
             # Back propagation
@@ -183,26 +184,27 @@ def main():
             
             # Compoute multi label accuracies
             if settings["database"]["label"] == "activated_by":
-                out_label = prob2label(output, threshold=1/len(output[0]))
-                targets_ohe = torch.nn.functional.one_hot(targets, num_classes=train_data.n_labels)
-                tr_acc += [accuracy_score(out_label, targets_ohe.to("cpu"))]
+                _, out_label = torch.max(output.data, dim=1)
+                tr_acc += [accuracy_score(out_label.to('cpu'), targets.to('cpu'))]
             else:
-                _, big_idx = torch.max(output.data, dim=1)
-                tr_acc += [precision_score(out_label, targets.to("cpu"))]
-                n_correct = calcuate_accu(big_idx, targets)
-                tr_acc += [(n_correct*100)/targets.size(0)]
+                _, out_label = torch.max(output.data, dim=1)
+                tr_acc += [accuracy_score(out_label.to('cpu'), targets.to("cpu"))]
             
             # Compute recall and precision
             if settings["database"]["label"] == "activated_by":
-                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+                targets_ohe = torch.nn.functional.one_hot(targets, num_classes=train_data.n_labels)
+                recall_epoch = recall_score(targets.to('cpu'), out_label.to('cpu'), zero_division=0, average=None)
+                precision_epoch = precision_score(targets.to('cpu'), out_label.to('cpu'), zero_division=0, average=None) 
                 tr_recall.append(recall_epoch)
                 tr_precision.append(precision_epoch)
 
         # Verbose
         print("Training Accuracy:" + str(np.mean(tr_acc)))    
         print("Training Loss:" + str(np.mean(tr_loss)))
+        # print("Training Recall:" + str(np.mean(tr_recall)))
+        # print("Training precision:" + str(np.mean(tr_precision)))
         
-        # Verbose recall and precision
+        # # Verbose recall and precision
         if settings["database"]["label"] == "multilabel":
             for label, index in zip(["HA", "NP", "HCRT", "negative"], range(3)):
                 recall_label = np.mean([val[index] for val in tr_recall])
@@ -218,23 +220,28 @@ def main():
             # Prepare data
             ids = data["ids"].to(device)
             attention_mask = data["attention_mask"].to(device)
-            targets = data["target"].to(device)
+            targets = data["target"].to(device).flatten()
 
             # Forward pass 
             output=model(ids, attention_mask)
          
-            # Compute loss
-            loss = loss_function(output, targets.to(torch.float32))
-            tst_loss += [loss.cpu().detach().numpy()]
-            
-             # Compoute multi label accuracies
-            if settings["database"]["label"] == "multilabel":
-                out_label = prob2label(output, threshold=1/len(output[0]))
-                tst_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
+            # Convert to One-Hot-Encoding and compute loss
+            if settings['database']['label'] == "activated_by":
+                loss = loss_function(output, targets)
+                tst_loss += [loss.cpu().detach().numpy()]
             else:
-                _, big_idx = torch.max(output.data, dim=1)
-                n_correct = calcuate_accu(big_idx, targets)
-                tst_acc += [(n_correct*100)/targets.size(0)]
+                target_ohe = torch.nn.functional.one_hot(targets, 2)
+                loss = loss_function(output, target_ohe.to(torch.float32))
+                tst_loss += [loss.cpu().detach().numpy()]
+            
+            # Compoute multi label accuracies
+            if settings["database"]["label"] == "activated_by":
+                _, out_label = torch.max(output.data, dim=1)
+                tst_acc += [accuracy_score(out_label.to('cpu'), targets.to('cpu'))]
+            else:
+                _, out_label = torch.max(output.data, dim=1)
+                tst_acc += [accuracy_score(out_label.to('cpu'), targets.to("cpu"))]
+                
         # Verbose
         print("Test Accuracy:" + str(np.mean(tst_acc)))    
         print("Test Loss:" + str(np.mean(tst_loss)))   

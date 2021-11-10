@@ -31,5 +31,5 @@ class Net(nn.Module):
       pooler = nn.Tanh()(pooler)
       pooler = self.dropout(pooler)
       output = self.classifier(pooler)
-      output = nn.functional.softmax(output)
+      output = nn.functional.softmax(output, dim=1)
       return output 
