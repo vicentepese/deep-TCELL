@@ -19,8 +19,8 @@ from tokenizers import pre_tokenizers, normalizers, Tokenizer
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel, Whitespace
 
-from sklearn.metrics import recall_score, precision_score
-from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import recall_score, precision_score, accuracy_score
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
             
 class CDR3Dataset(Dataset):
@@ -162,10 +162,15 @@ def main():
             
             # Forward pass 
             output=model(ids, attention_mask)
-            loss = loss_function(output, targets.to(torch.float32))
             
-            # Compute loss
-            tr_loss += [loss.cpu().detach().numpy()]
+            # Convert to One-Hot-Encoding and compute loss
+            if settings['database']['label'] == "activated_by":
+                targets_ohe = nn.functional.one_hot(targets.flatten(), num_classes = train_data.n_labels)
+                loss = loss_function(output, targets_ohe.to(torch.float32))
+                tr_loss += [loss.cpu().detach().numpy()]
+            else:
+                loss = loss_function(output, targets.to(torch.float32))
+                tr_loss += [loss.cpu().detach().numpy()]
             
             # Back propagation
             optimizer.zero_grad()
@@ -175,11 +180,12 @@ def main():
             optimizer.step()
             
             # Compoute multi label accuracies
-            if settings["database"]["label"] == "multilabel":
+            if settings["database"]["label"] == "activated_by":
                 out_label = prob2label(output, threshold=1/len(output[0]))
-                tr_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
+                tr_acc += [accuracy_score(out_label, targets_ohe.to("cpu"))]
             else:
                 _, big_idx = torch.max(output.data, dim=1)
+                tr_acc += [precision_score(out_label, targets.to("cpu"))]
                 n_correct = calcuate_accu(big_idx, targets)
                 tr_acc += [(n_correct*100)/targets.size(0)]
             
@@ -213,7 +219,7 @@ def main():
 
             # Forward pass 
             output=model(ids, attention_mask)
-
+         
             # Compute loss
             loss = loss_function(output, targets.to(torch.float32))
             tst_loss += [loss.cpu().detach().numpy()]

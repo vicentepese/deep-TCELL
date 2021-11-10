@@ -25,5 +25,5 @@ class Net(nn.Module):
         pooler = nn.Tanh()(pooler)
         pooler = self.dropout(pooler)
         output = self.classifier(pooler)
-        output = torch.softmax(output)
+        output = torch.sigmoid(output)
         return output 
