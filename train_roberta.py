@@ -4,7 +4,7 @@ import pandas as pd
 import json
 import tokenizers
 import torch
-from models import roberta_classification, roberta_multilabel
+from models import roberta_binary, roberta_multiclass
 from utils.utils import *
 
 from tqdm import tqdm
@@ -26,7 +26,7 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 class CDR3Dataset(Dataset):
     
     def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, equal:bool=False) -> None:
-        cols = ['activated_by', 'num_label', 'activated_by_HA69',
+        cols = ['activated_by', 'activated_by_HA69',
                     'activated_by_HA69|HCRT', 'activated_by_HA69|NP136',
                     'activated_by_HCRT', 'activated_by_HCRT|NP136', 'activated_by_NP136',
                     'activated_by_negative']
@@ -78,7 +78,7 @@ class CDR3Dataset(Dataset):
                 }
         if self.label == "activated_by":
             target = self.label_encoder.transform(self.data[[self.label]].iloc[index])
-            item["target"]=tensor(target,dtype =torch.long)
+            item["target"]= tensor(target, dtype =torch.long)
         else:
             item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
         return item
@@ -133,9 +133,9 @@ def main():
     
     # Create the model 
     if settings['database']['label'] == 'activated_by':
-        model = roberta_multilabel.Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
+        model = roberta_multiclass.Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
     else:
-        model = roberta_classification.Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
+        model = roberta_binary.Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
     model.to(device)
     
     # Initialize model weights
@@ -143,7 +143,10 @@ def main():
         model.apply(init_weights)
     
     # Create the loss function and optimizer
-    loss_function = nn.BCELoss()
+    if settings['database']['label'] == 'activated_by':
+        loss_function = nn.CrossEntropyLoss()
+    else:    
+        loss_function = nn.BCELoss()
     optimizer = torch.optim.SGD(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
     # Training routine 
@@ -158,15 +161,14 @@ def main():
             # Prepare data
             ids = data["ids"].to(device)
             attention_mask = data["attention_mask"].to(device)
-            targets = data["target"].to(device)
+            targets = data["target"].to(device).flatten()
             
             # Forward pass 
             output=model(ids, attention_mask)
             
             # Convert to One-Hot-Encoding and compute loss
             if settings['database']['label'] == "activated_by":
-                targets_ohe = nn.functional.one_hot(targets.flatten(), num_classes = train_data.n_labels)
-                loss = loss_function(output, targets_ohe.to(torch.float32))
+                loss = loss_function(output, targets)
                 tr_loss += [loss.cpu().detach().numpy()]
             else:
                 loss = loss_function(output, targets.to(torch.float32))
@@ -182,6 +184,7 @@ def main():
             # Compoute multi label accuracies
             if settings["database"]["label"] == "activated_by":
                 out_label = prob2label(output, threshold=1/len(output[0]))
+                targets_ohe = torch.nn.functional.one_hot(targets, num_classes=train_data.n_labels)
                 tr_acc += [accuracy_score(out_label, targets_ohe.to("cpu"))]
             else:
                 _, big_idx = torch.max(output.data, dim=1)
@@ -190,7 +193,7 @@ def main():
                 tr_acc += [(n_correct*100)/targets.size(0)]
             
             # Compute recall and precision
-            if settings["database"]["label"] == "multilabel":
+            if settings["database"]["label"] == "activated_by":
                 recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
                 tr_recall.append(recall_epoch)
                 tr_precision.append(precision_epoch)
