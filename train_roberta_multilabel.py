@@ -193,7 +193,7 @@ def main():
         
         # Verbose recall and precision
         if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT"], range(3)):
+            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
                 recall_label = np.mean([val[index] for val in tr_recall])
                 precision_label = np.mean([val[index] for val in tr_precision])
                 print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
