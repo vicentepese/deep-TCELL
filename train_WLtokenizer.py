@@ -38,11 +38,15 @@ def get_token_train_data(settings:dict) -> list():
     # Tokenize labels , and create individual lables for HA69 and NP136
     for key in tcr_df_set.keys():
         data_pre = tcr_df_set[key]
-        data_pre.insert(2, "num_label", LabelEncoder().fit_transform(data_pre.activated_by), True)
-        data_OHE = pd.get_dummies(data_pre.activated_by, prefix="activated_by")
-        data_pre = pd.concat([data_pre, data_OHE], axis=1)
+        le = LabelEncoder().fit(data_pre.activated_by)
+        data_pre["num_label"] = le.transform(data_pre.activated_by)
+        data_pre["activatedby_HA"] = data_pre.num_label.apply(lambda x: 1 if x in [0,1,2] else 0)
+        data_pre["activatedby_HCRT"] = data_pre.num_label.apply(lambda x: 1 if x in [1,3,4] else 0)
+        data_pre["activatedby_NP"] = data_pre.num_label.apply(lambda x: 1 if x in [2,4,5] else 0)
+        data_pre["negative"] = data_pre.num_label.apply(lambda x: 1 if x == 6 else 0)
+        data_pre["activated_any"] = data_pre.num_label.apply(lambda x: 1 if x != 6 else 0)
         data_pre.to_csv(tcr_df_path[key], index=False, header=True)
-        
+            
     # Write file to train tokenizer 
     with open(settings["file"]["WLtokenizer_data"],"w") as outFile:
         for cdr in X_train.CDR3ab:

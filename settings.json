@@ -22,12 +22,14 @@
     },
 
     "tokenizer":{
-        "BPE":"tokenizer/BPE/BPE.json",
+        "BPE":"tokenizer/BPE",
+        "BPE_vocab":"tokenizer/BPE/vocab.json",
+        "BPE_merge":"tokenizer/BPE/merges.txt",
         "WL":"tokenizer/WL/WL.json"
     },
 
     "param":{
-        "tokenizer":"BPE",
+        "tokenizer":"WL",
         "test_split":0.7, 
         "equal":"False",
         "init":"False",
