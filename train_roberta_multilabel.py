@@ -4,7 +4,7 @@ import pandas as pd
 import json
 import tokenizers
 import torch
-from models import roberta_classification, roberta_multilabel
+from models.roberta_multilabel import Net
 from utils.utils import *
 
 from tqdm import tqdm
@@ -20,22 +20,18 @@ from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel, Whitespace
 
 from sklearn.metrics import recall_score, precision_score
-from sklearn.preprocessing import LabelEncoder
 
             
 class CDR3Dataset(Dataset):
     
     def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, equal:bool=False) -> None:
-        cols = ['activated_by', 'num_label', 'activated_by_HA69',
-                    'activated_by_HA69|HCRT', 'activated_by_HA69|NP136',
-                    'activated_by_HCRT', 'activated_by_HCRT|NP136', 'activated_by_NP136',
-                    'activated_by_negative']
+        cols = ["num_label", "activatedby_HA", "activatedby_NP", "activatedby_HCRT", "activated_any", "multilabel"]
         if label not in cols:
             raise ValueError("Invalid label type. Expected one of %s" % cols)
         else: 
             self.label = label
-        if equal and (label == "num_label" or label == "activated_by"):
-            raise ValueError("Equal size sets only allowed for binary classifications. num_label and activaded_by is multiclass.")
+        if equal and label == "num_label":
+            raise ValueError("Equal size sets only allowed for binary classifications. num_label is multiclass.")
         
         if train == True:
             path_to_data = settings["file"]["train_data"] 
@@ -50,43 +46,41 @@ class CDR3Dataset(Dataset):
             data_neg = self.data[self.data[self.label]==0].sample(min_sample)
             self.data = pd.concat([data_pos, data_neg], ignore_index=True)
         
-      
-        self.label_class = np.unique(self.data[[self.label]])
-        self.n_labels = len(self.label_class)
+        if label == "multilabel":
+            self.labels = [0,1]
+            self.n_labels = 4
+        else:
+            self.labels = np.unique(self.data[[self.label]])
+            self.n_labels = len(self.labels)
+            
         self.max_len = self.data.CDR3ab.str.len().max()
         
         self.tokenizer = tokenizer
-        self.tokenizer.enable_padding(length=self.max_len)
-        
-        if self.label == 'activated_by':
-            self.label_encoder = LabelEncoder().fit(self.data[self.label])
         
     def __getitem__(self, index:int):
-        
-        if isinstance(self.tokenizer.model, tokenizers.models.WordLevel):
+        if isinstance(self.tokenizer, tokenizers.Tokenizer):
+            self.tokenizer.enable_padding(length=self.max_len)
             CDR3ab = " ".join(list(self.data.CDR3ab[index]))
             encodings = self.tokenizer.encode(CDR3ab)
             item = {
                 "ids":tensor(encodings.ids, dtype=torch.long),
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
-        elif isinstance(self.tokenizer.model, tokenizers.models.BPE):
+        else:
+            self.tokenizer.enable_padding(length=self.max_len)
             encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
             item = {
                 "ids":tensor(encodings.ids, dtype=torch.long),
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
-        if self.label == "activated_by":
-            target = self.label_encoder.transform(self.data[[self.label]].iloc[index])
-            item["target"]=tensor(target,dtype =torch.long)
+        if self.label == "multilabel":
+            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "negative"]].iloc[index],dtype =torch.long)
         else:
             item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
         return item
 
     def __len__(self):
         return len(self.data)
-    
-    
     
 def main():
     
@@ -104,12 +98,12 @@ def main():
 
     # Create tonekizer from tokenizers library 
     if settings["param"]["tokenizer"] == "BPE":
-        tokenizer = Tokenizer.from_file(settings["tokenizer"]["BPE"])
+        tokenizer = Tokenizer(BPE().from_file(settings["tokenizer"]["BPE"]))
     elif settings["param"]["tokenizer"] == "WL":
         tokenizer = Tokenizer(WordLevel()).from_file(settings["tokenizer"]["WL"])
     else:
         raise ValueError("Unknown tokenizer. Tokenizer argument must be BPE or WL.")
-    tokenizer.enable_padding(max_len = 39)
+
         
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
@@ -132,10 +126,7 @@ def main():
                                 hidden_dropout_prob=0.1)
     
     # Create the model 
-    if settings['database']['label'] == 'activated_by':
-        model = roberta_multilabel.Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
-    else:
-        model = roberta_classification.Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
+    model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
     model.to(device)
     
     # Initialize model weights
