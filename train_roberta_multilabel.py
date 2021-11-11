@@ -184,7 +184,7 @@ def main():
             
             # Compute recall and precision
             if settings["database"]["label"] == "multilabel":
-                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+                recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
                 tr_recall.append(recall_epoch)
                 tr_precision.append(precision_epoch)
 
@@ -194,7 +194,7 @@ def main():
         
         # Verbose recall and precision
         if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT"], range(3)):
+            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
                 recall_label = np.mean([val[index] for val in tr_recall])
                 precision_label = np.mean([val[index] for val in tr_precision])
                 print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
