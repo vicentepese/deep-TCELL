@@ -25,7 +25,7 @@ from sklearn.metrics import recall_score, precision_score
 class CDR3Dataset(Dataset):
     
     def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, equal:bool=False) -> None:
-        cols = ["num_label", "activatedby_HA", "activatedby_NP", "activatedby_HCRT", "activated_any", "multilabel"]
+        cols = ["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "activated_any", "multilabel", "negative"]
         if label not in cols:
             raise ValueError("Invalid label type. Expected one of %s" % cols)
         else: 
@@ -48,7 +48,7 @@ class CDR3Dataset(Dataset):
         
         if label == "multilabel":
             self.labels = [0,1]
-            self.n_labels = 3
+            self.n_labels = 4
         else:
             self.labels = np.unique(self.data[[self.label]])
             self.n_labels = len(self.labels)
@@ -74,7 +74,7 @@ class CDR3Dataset(Dataset):
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
         if self.label == "multilabel":
-            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index],dtype =torch.long)
+            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "negative"]].iloc[index],dtype =torch.long)
         else:
             item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
         return item
@@ -145,6 +145,7 @@ def main():
     optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
         
     # Training routine 
+    max_acc = 0
     for _ in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
         tr_loss, tst_loss = [], []
@@ -174,7 +175,7 @@ def main():
             
             # Compoute multi label accuracies
             if settings["database"]["label"] == "multilabel":
-                out_label = prob2label(output, threshold=1/len(output[0]))
+                out_label = prob2label(output, threshold=0.5)
                 tr_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
             else:
                 _, big_idx = torch.max(output.data, dim=1)
@@ -224,9 +225,27 @@ def main():
                 _, big_idx = torch.max(output.data, dim=1)
                 n_correct = calcuate_accu(big_idx, targets)
                 tst_acc += [(n_correct*100)/targets.size(0)]
+            
+            # Compute recall and precision
+            if settings["database"]["label"] == "multilabel":
+                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+                tst_recall.append(recall_epoch)
+                tst_precision.append(precision_epoch)
         # Verbose
         print("Test Accuracy:" + str(np.mean(tst_acc)))    
         print("Test Loss:" + str(np.mean(tst_loss)))   
+        
+        # Verbose recall and precision
+        if settings["database"]["label"] == "multilabel":
+            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                recall_label = np.mean([val[index] for val in tst_recall])
+                precision_label = np.mean([val[index] for val in tst_precision])
+                print("Test recall for " + label + " " + str(np.round(recall_label, decimals=3)))
+                print("Test precision for " + label + " " + str(np.round(precision_label, decimals=3)))
+                
+        # Save model 
+        if max_acc < np.max(tr_acc):
+            torch.save(model, 'best_model')
         
 
 if __name__ == "__main__":
