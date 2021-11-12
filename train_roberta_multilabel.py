@@ -86,6 +86,7 @@ def main():
     
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print("Using device: " + device)
     
     # Set random seed
     seed_nr = 1964
