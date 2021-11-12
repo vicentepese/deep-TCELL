@@ -13,12 +13,8 @@ from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
 
 from transformers import  RobertaConfig
-from tokenizers.implementations import ByteLevelBPETokenizer
-from tokenizers.models import WordLevel
-from tokenizers import pre_tokenizers, normalizers, Tokenizer
-from tokenizers.normalizers import Lowercase, NFD
-from tokenizers.pre_tokenizers import ByteLevel, Whitespace
-
+from tokenizers.models import WordLevel, BPE
+from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
 
             
@@ -58,7 +54,7 @@ class CDR3Dataset(Dataset):
         self.tokenizer = tokenizer
         
     def __getitem__(self, index:int):
-        if isinstance(self.tokenizer, tokenizers.Tokenizer):
+        if isinstance(self.tokenizer.model, tokenizers.models.WordLevel):
             self.tokenizer.enable_padding(length=self.max_len)
             CDR3ab = " ".join(list(self.data.CDR3ab[index]))
             encodings = self.tokenizer.encode(CDR3ab)
@@ -66,7 +62,7 @@ class CDR3Dataset(Dataset):
                 "ids":tensor(encodings.ids, dtype=torch.long),
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
-        else:
+        elif isinstance(self.tokenizer.model, tokenizers.models.BPE):
             self.tokenizer.enable_padding(length=self.max_len)
             encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
             item = {
@@ -97,21 +93,15 @@ def main():
     np.random.seed(seed_nr)
 
     # Create tonekizer from tokenizers library 
+    
     if settings["param"]["tokenizer"] == "BPE":
-        normalizer = normalizers.Sequence([Lowercase(), NFD()])
-        pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
-        tokenizer = ByteLevelBPETokenizer(settings["tokenizer"]["BPE_vocab"], settings["tokenizer"]["BPE_merge"])
-        tokenizer.normalizer = normalizer
-        tokenizer.pre_tokenizer = pre_tokenizer
+        tokenizer = Tokenizer(BPE()).from_file(settings["tokenizer"]["BPE"])
     elif settings["param"]["tokenizer"] == "WL":
-        normalizer = normalizers.Sequence([Lowercase(), NFD()])
-        pre_tokenizer = pre_tokenizers.Sequence([Whitespace()])
         tokenizer = Tokenizer(WordLevel()).from_file(settings["tokenizer"]["WL"])
-        tokenizer.pre_tokenizer = pre_tokenizer
-        tokenizer.normalizer = normalizer
-        tokenizer.enable_padding()
     else:
         raise ValueError("Unknown tokenizer. Tokenizer argument must be BPE or WL.")
+    tokenizer.enable_padding()
+
         
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
@@ -126,7 +116,7 @@ def main():
     train_dataloader = DataLoader(train_data, **loader_params)
     test_dataloader = DataLoader(test_data, **loader_params)
     
-    model_config = RobertaConfig(vocab_size = 4050,
+    model_config = RobertaConfig(vocab_size = tokenizer.get_vocab_size(),
                                 hidden_size = 1032,
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
@@ -247,18 +237,18 @@ def main():
         if max_acc < np.max(tr_acc):
             torch.save(model, 'best_model')
             
-        # Write metrics 
-        tr_loss, tst_loss = [], []
-        tr_acc, tst_acc = [], []
-        tr_recall, tst_recall = [], []
-        tr_precision, tst_precision = [], []
-        metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
-                                'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
-        metrics_loss_acc.to_csv('metrics_loss_acc.csv', header=True, index=False)
-        metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
-        metrics_recall_tr.columns, metrics_recall_tst.columns = ["HA", "NP", "HCRT", 'negative'], ["HA", "NP", "HCRT", 'negative']
-        metrics_prec_tr, metrics_prec_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
-        metrics_prec_tr.columns, metrics_prec_tst.columns = ["HA", "NP", "HCRT", 'negative'],["HA", "NP", "HCRT", 'negative']
+        # # Write metrics 
+        # tr_loss, tst_loss = [], []
+        # tr_acc, tst_acc = [], []
+        # tr_recall, tst_recall = [], []
+        # tr_precision, tst_precision = [], []
+        # metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
+        #                         'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
+        # metrics_loss_acc.to_csv('metrics_loss_acc.csv', header=True, index=False)
+        # metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
+        # metrics_recall_tr.columns, metrics_recall_tst.columns = ["HA", "NP", "HCRT", 'negative'], ["HA", "NP", "HCRT", 'negative']
+        # metrics_prec_tr, metrics_prec_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
+        # metrics_prec_tr.columns, metrics_prec_tst.columns = ["HA", "NP", "HCRT", 'negative'],["HA", "NP", "HCRT", 'negative']
         
 
 if __name__ == "__main__":

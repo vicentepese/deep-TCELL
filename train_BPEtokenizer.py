@@ -2,16 +2,19 @@ from operator import index
 import numpy as np
 import pandas as pd 
 import json
+from tokenizers import trainers
 import torch
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from tokenizers.implementations import ByteLevelBPETokenizer
-from tokenizers import pre_tokenizers
-from tokenizers import normalizers
+from tokenizers import pre_tokenizers, normalizers, Tokenizer
+from tokenizers.models import BPE
+from tokenizers.trainers import BpeTrainer
 from tokenizers.normalizers import Lowercase, NFD
 from tokenizers.pre_tokenizers import ByteLevel
+from transformers.utils.dummy_pt_objects import FNetForQuestionAnswering
 
 def get_token_train_data(settings:dict) -> list():
     """get_token_train_data [Reads data, splits train and test, writes them, and 
@@ -65,14 +68,15 @@ def tokenization_pipeline(settings:dict) -> None:
     pre_tokenizer = pre_tokenizers.Sequence([ByteLevel()])
     
     # Create tokenizer
-    tokenizer = ByteLevelBPETokenizer()
+    tokenizer = Tokenizer(BPE())
+    trainer = BpeTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], min_frequency=2)
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
-    tokenizer.enable_padding(length=39)
+    tokenizer.enable_padding()
     
     # Train on data 
-    tokenizer.train(files=settings["file"]["BPEtokenizer_data"], min_frequency = 2)
-    tokenizer.save_model(settings["tokenizer"]["BPE"])
+    tokenizer.train(files=[settings["file"]["BPEtokenizer_data"]], trainer=trainer)
+    tokenizer.save(settings["tokenizer"]["BPE"])
     
     return tokenizer
     
