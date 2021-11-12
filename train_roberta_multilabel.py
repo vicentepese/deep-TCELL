@@ -246,6 +246,19 @@ def main():
         # Save model 
         if max_acc < np.max(tr_acc):
             torch.save(model, 'best_model')
+            
+        # Write metrics 
+        tr_loss, tst_loss = [], []
+        tr_acc, tst_acc = [], []
+        tr_recall, tst_recall = [], []
+        tr_precision, tst_precision = [], []
+        metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
+                                'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
+        metrics_loss_acc.to_csv('metrics_loss_acc.csv', header=True, index=False)
+        metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
+        metrics_recall_tr.columns, metrics_recall_tst.columns = ["HA", "NP", "HCRT", 'negative'], ["HA", "NP", "HCRT", 'negative']
+        metrics_prec_tr, metrics_prec_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
+        metrics_prec_tr.columns, metrics_prec_tst.columns = ["HA", "NP", "HCRT", 'negative'],["HA", "NP", "HCRT", 'negative']
         
 
 if __name__ == "__main__":
