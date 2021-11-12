@@ -36,9 +36,9 @@ def get_token_train_data(settings:dict) -> list():
     tcr_df_path = {"train": settings["file"]["train_data"], "test": settings["file"]["test_data"]}
     
     # Tokenize labels , and create individual lables for HA69 and NP136
+    le = LabelEncoder().fit(X_train.activated_by)
     for key in tcr_df_set.keys():
         data_pre = tcr_df_set[key]
-        le = LabelEncoder().fit(data_pre.activated_by)
         data_pre["num_label"] = le.transform(data_pre.activated_by)
         data_pre["activatedby_HA"] = data_pre.num_label.apply(lambda x: 1 if x in [0,1,2] else 0)
         data_pre["activatedby_HCRT"] = data_pre.num_label.apply(lambda x: 1 if x in [1,3,4] else 0)
