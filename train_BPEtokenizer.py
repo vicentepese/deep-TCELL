@@ -69,7 +69,8 @@ def tokenization_pipeline(settings:dict) -> None:
     
     # Create tokenizer
     tokenizer = Tokenizer(BPE())
-    trainer = BpeTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], min_frequency=2)
+    trainer = BpeTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], 
+                         min_frequency=settings['tokenizer']['BPE_min_freq'])
     tokenizer.normalizer = normalizer
     tokenizer.pre_tokenizer = pre_tokenizer
     tokenizer.enable_padding()

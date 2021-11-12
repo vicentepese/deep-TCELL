@@ -23,6 +23,7 @@
 
     "tokenizer":{
         "BPE":"tokenizer/BPE/BPE.json",
+        "BPE_min_freq":10,
         "WL":"tokenizer/WL/WL.json"
     },
 
