@@ -6,8 +6,9 @@ import tokenizers
 import torch
 from models.roberta_multilabel import Net
 from utils.utils import *
-
+import argparse
 from tqdm import tqdm
+from operator import add
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
@@ -16,8 +17,7 @@ from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
-
-            
+   
 class CDR3Dataset(Dataset):
     
     def __init__(self, settings:dict, train:bool = True, label:str = None, tokenizer:tokenizers.Tokenizer=None, equal:bool=False) -> None:
@@ -83,7 +83,18 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
-    
+
+    # Parse arguments for optimization
+    parser = argparse.ArgumentParser(description='Optimization parameters')
+    parser.add_argument('--batch_size', type = int, help='batch size of the dataloaders', default=None)
+
+    # Execute the parse_args() method
+    args = parser.parse_args()
+
+    # Check arguments 
+    if args.batch_size is not None:
+        settings['param']['batch_size'] = args.batch_size
+
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
@@ -238,18 +249,20 @@ def main():
         if max_acc < np.max(tr_acc):
             torch.save(model, 'best_model')
             
-        # # Write metrics 
-        # tr_loss, tst_loss = [], []
-        # tr_acc, tst_acc = [], []
-        # tr_recall, tst_recall = [], []
-        # tr_precision, tst_precision = [], []
-        # metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
-        #                         'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
-        # metrics_loss_acc.to_csv('metrics_loss_acc.csv', header=True, index=False)
-        # metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
-        # metrics_recall_tr.columns, metrics_recall_tst.columns = ["HA", "NP", "HCRT", 'negative'], ["HA", "NP", "HCRT", 'negative']
-        # metrics_prec_tr, metrics_prec_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
-        # metrics_prec_tr.columns, metrics_prec_tst.columns = ["HA", "NP", "HCRT", 'negative'],["HA", "NP", "HCRT", 'negative']
+        # Write metrics 
+        metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
+                                'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
+        metrics_loss_acc.to_csv('metrics_loss_acc_BS_' + str(settings['param']['batch_size']) + '.csv', header=True, index=False)
+
+        metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
+        metrics_recall = pd.concat([metrics_recall_tr, metrics_recall_tst])
+        metrics_recall.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
+        pd.to_csv(metrics_recall, 'metrics_recall_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
+
+        metrics_precision_tr, metrics_precision_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
+        metrics_precision = pd.concat([metrics_precision_tr, metrics_precision_tst])
+        metrics_precision.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
+        pd.to_csv(metrics_precision, 'metrics_precision_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
         
 
 if __name__ == "__main__":
