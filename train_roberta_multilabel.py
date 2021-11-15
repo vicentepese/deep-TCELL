@@ -12,6 +12,7 @@ from operator import add
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
+from torch.utils.tensorboard import SummaryWriter
 
 from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
@@ -103,9 +104,11 @@ def main():
     seed_nr = 1964
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
+    
+    # Initialize tensorboard session
+    writer = SummaryWriter()
 
     # Create tonekizer from tokenizers library 
-    
     if settings["param"]["tokenizer"] == "BPE":
         tokenizer = Tokenizer(BPE()).from_file(settings["tokenizer"]["BPE"])
     elif settings["param"]["tokenizer"] == "WL":
@@ -135,9 +138,14 @@ def main():
                                 problem_type="multi_label_classification",
                                 hidden_dropout_prob=0.1)
     
-    # Create the model 
+    # Create the model and add to
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
     model.to(device)
+    
+    # Add to writer 
+    item = next(iter(train_dataloader))
+    writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
+    
     
     # Initialize model weights
     model.apply(init_weights)
@@ -148,7 +156,7 @@ def main():
         
     # Training routine 
     max_acc = 0
-    for _ in tqdm(range(settings["param"]["n_epochs"])):
+    for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
         tr_loss, tst_loss = [], []
         tr_acc, tst_acc = [], []
@@ -202,7 +210,16 @@ def main():
                 print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
                 print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
         
-
+        # Add to writer
+        writer.add_scalar("Loss/train:", tr_loss[i], i)
+        writer.add_scalar("Accuracy/train:", tr_acc[i], i)
+        if settings["database"]["label"] == "multilabel":
+            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                recall_label = np.mean([val[index] for val in tr_recall])
+                precision_label = np.mean([val[index] for val in tr_precision])
+                writer.add_scalar("Recall/" + label + "_train", recall_label,i)
+                writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+        
         # Test 
         model.eval()
         for data in test_dataloader:
@@ -245,25 +262,38 @@ def main():
                 print("Test recall for " + label + " " + str(np.round(recall_label, decimals=3)))
                 print("Test precision for " + label + " " + str(np.round(precision_label, decimals=3)))
                 
+        # Add to writer
+        writer.add_scalar("Loss/test:", tst_loss[i], i)
+        writer.add_scalar("Accuracy/test:", tst_acc[i], i)
+        if settings["database"]["label"] == "multilabel":
+            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                recall_label = np.mean([val[index] for val in tst_recall])
+                precision_label = np.mean([val[index] for val in tst_precision])
+                writer.add_scalar("Recall/" + label + "_test", recall_label, i)
+                writer.add_scalar("Precision/" + label + "_test", precision_label, i)
+        
         # Save model 
         if max_acc < np.max(tr_acc):
             torch.save(model, 'best_model')
             
-        # Write metrics 
-        metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
-                                'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
-        metrics_loss_acc.to_csv('metrics_loss_acc_BS_' + str(settings['param']['batch_size']) + '.csv', header=True, index=False)
+    # Flush writer
+    writer.flush()
+    
+    # Write metrics 
+    metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
+                            'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
+    metrics_loss_acc.to_csv('metrics_loss_acc_BS_' + str(settings['param']['batch_size']) + '.csv', header=True, index=False)
 
-        metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
-        metrics_recall = pd.concat([metrics_recall_tr, metrics_recall_tst])
-        metrics_recall.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
-        pd.to_csv(metrics_recall, 'metrics_recall_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
+    metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
+    metrics_recall = pd.concat([metrics_recall_tr, metrics_recall_tst])
+    metrics_recall.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
+    pd.to_csv(metrics_recall, 'metrics_recall_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
 
-        metrics_precision_tr, metrics_precision_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
-        metrics_precision = pd.concat([metrics_precision_tr, metrics_precision_tst])
-        metrics_precision.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
-        pd.to_csv(metrics_precision, 'metrics_precision_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
-        
+    metrics_precision_tr, metrics_precision_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
+    metrics_precision = pd.concat([metrics_precision_tr, metrics_precision_tst])
+    metrics_precision.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
+    pd.to_csv(metrics_precision, 'metrics_precision_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
+    
 
 if __name__ == "__main__":
     main()
