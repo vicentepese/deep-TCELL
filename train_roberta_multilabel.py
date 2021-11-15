@@ -9,6 +9,7 @@ from utils.utils import *
 import argparse
 from tqdm import tqdm
 from operator import add
+from collections import OrderedDict, defaultdict
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
@@ -142,7 +143,7 @@ def main():
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
     model.to(device)
     
-    # Add to writer 
+    # Add to model and hyperparameter to writer
     item = next(iter(train_dataloader))
     writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
     
@@ -158,10 +159,7 @@ def main():
     max_acc = 0
     for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
-        tr_loss, tst_loss = [], []
-        tr_acc, tst_acc = [], []
-        tr_recall, tst_recall = [], []
-        tr_precision, tst_precision = [], []
+        metrics = defaultdict(list)
         for data in train_dataloader:
             
             # Prepare data
@@ -174,7 +172,7 @@ def main():
             loss = loss_function(output, targets.to(torch.float32))
             
             # Compute loss
-            tr_loss += [loss.cpu().detach().numpy()]
+            metrics['tr_loss'] += [loss.cpu().detach().numpy()]
             
             # Back propagation
             optimizer.zero_grad()
@@ -183,43 +181,28 @@ def main():
             # Update weights
             optimizer.step()
             
-            # Compoute multi label accuracies
+            # Compoute multi label accuracies and recall, or acc
             if settings["database"]["label"] == "multilabel":
                 out_label = prob2label(output, threshold=0.5)
-                tr_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
+                metrics['tr_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
+                recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+                metrics['tr_recall'].append(recall_epoch)
+                metrics['tr_precision'].append(precision_epoch)
             else:
                 _, big_idx = torch.max(output.data, dim=1)
                 n_correct = calcuate_accu(big_idx, targets)
-                tr_acc += [(n_correct*100)/targets.size(0)]
-            
-            # Compute recall and precision
-            if settings["database"]["label"] == "multilabel":
-                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-                tr_recall.append(recall_epoch)
-                tr_precision.append(precision_epoch)
+                metrics['tr_acc'] += [(n_correct*100)/targets.size(0)]
 
-        # Verbose
-        if settings['verbose']:
-            print("Training Accuracy:" + str(np.mean(tr_acc)))    
-            print("Training Loss:" + str(np.mean(tr_loss)))
-            
-            # Verbose recall and precision
-            if settings["database"]["label"] == "multilabel":
-                for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                    recall_label = np.mean([val[index] for val in tr_recall])
-                    precision_label = np.mean([val[index] for val in tr_precision])
-                    print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
-                    print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
-            
         # Add to writer
-        writer.add_scalar("Loss/train:", tr_loss[i], i)
-        writer.add_scalar("Accuracy/train:", tr_acc[i], i)
+        writer.add_scalar("Loss/train:", np.mean(metrics['tr_loss']), i)
+        writer.add_scalar("Accuracy/train:", np.mean(metrics['tr_acc']), i)
         if settings["database"]["label"] == "multilabel":
             for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in tr_recall])
-                precision_label = np.mean([val[index] for val in tr_precision])
+                recall_label = np.mean([val[index] for val in metrics['tr_recall']])
+                precision_label = np.mean([val[index] for val in metrics['tr_precision']])
                 writer.add_scalar("Recall/" + label + "_train", recall_label,i)
                 writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+                
         
         # Test 
         model.eval()
@@ -235,49 +218,33 @@ def main():
 
             # Compute loss
             loss = loss_function(output, targets.to(torch.float32))
-            tst_loss += [loss.cpu().detach().numpy()]
+            metrics['tst_loss'] += [loss.cpu().detach().numpy()]
             
              # Compoute multi label accuracies
             if settings["database"]["label"] == "multilabel":
                 out_label = prob2label(output, threshold=1/len(output[0]))
-                tst_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
+                metrics['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
+                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+                metrics['tst_recall'].append(recall_epoch)
+                metrics['tst_precision'].append(precision_epoch)
+                
             else:
                 _, big_idx = torch.max(output.data, dim=1)
                 n_correct = calcuate_accu(big_idx, targets)
-                tst_acc += [(n_correct*100)/targets.size(0)]
-            
-            # Compute recall and precision
-            if settings["database"]["label"] == "multilabel":
-                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-                tst_recall.append(recall_epoch)
-                tst_precision.append(precision_epoch)
-                
-                
-        # Verbose
-        if settings['verbose']:
-            print("Test Accuracy:" + str(np.mean(tst_acc)))    
-            print("Test Loss:" + str(np.mean(tst_loss)))   
-            
-            # Verbose recall and precision
-            if settings["database"]["label"] == "multilabel":
-                for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                    recall_label = np.mean([val[index] for val in tst_recall])
-                    precision_label = np.mean([val[index] for val in tst_precision])
-                    print("Test recall for " + label + " " + str(np.round(recall_label, decimals=3)))
-                    print("Test precision for " + label + " " + str(np.round(precision_label, decimals=3)))
-                
+                metrics['tst_acc'] += [(n_correct*100)/targets.size(0)]
+
         # Add to writer
-        writer.add_scalar("Loss/test:", tst_loss[i], i)
-        writer.add_scalar("Accuracy/test:", tst_acc[i], i)
+        writer.add_scalar("Loss/test:", np.mean(metrics['tst_loss']), i)
+        writer.add_scalar("Accuracy/test:", np.mean(metrics['tst_acc']), i)
         if settings["database"]["label"] == "multilabel":
             for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in tst_recall])
-                precision_label = np.mean([val[index] for val in tst_precision])
+                recall_label = np.mean([val[index] for val in metrics['tst_recall']])
+                precision_label = np.mean([val[index] for val in metrics['tst_precision']])
                 writer.add_scalar("Recall/" + label + "_test", recall_label, i)
                 writer.add_scalar("Precision/" + label + "_test", precision_label, i)
         
         # Save model 
-        if max_acc < np.max(tr_acc):
+        if max_acc < np.max(metrics['tr_acc']):
             torch.save(model, 'best_model')
             
     # Flush writer
