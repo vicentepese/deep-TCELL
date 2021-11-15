@@ -203,7 +203,6 @@ def main():
                 writer.add_scalar("Recall/" + label + "_train", recall_label,i)
                 writer.add_scalar("Precision/" + label + "_train", precision_label,i)
                 
-        
         # Test 
         model.eval()
         for data in test_dataloader:
@@ -246,6 +245,10 @@ def main():
         # Save model 
         if max_acc < np.max(metrics['tr_acc']):
             torch.save(model, 'best_model')
+        
+    # Write hyperparameter
+    metrics_hp = {k:np.mean(v) for k,v in metrics.items()}
+    writer.add_hparams(settings['param'], metrics_hp)
             
     # Flush writer
     writer.flush()
