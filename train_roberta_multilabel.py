@@ -79,7 +79,8 @@ class CDR3Dataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-    
+
+
 def main():
     
     # Load settings 
@@ -219,7 +220,7 @@ def main():
             loss = loss_function(output, targets.to(torch.float32))
             metrics['tst_loss'] += [loss.cpu().detach().numpy()]
             
-             # Compoute multi label accuracies
+            # Compoute multi label accuracies
             if settings["database"]["label"] == "multilabel":
                 out_label = prob2label(output, threshold=1/len(output[0]))
                 metrics['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
