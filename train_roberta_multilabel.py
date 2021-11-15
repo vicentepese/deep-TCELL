@@ -199,26 +199,27 @@ def main():
                 tr_precision.append(precision_epoch)
 
         # Verbose
-        print("Training Accuracy:" + str(np.mean(tr_acc)))    
-        print("Training Loss:" + str(np.mean(tr_loss)))
-        
-        # Verbose recall and precision
-        if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in tr_recall])
-                precision_label = np.mean([val[index] for val in tr_precision])
-                print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
-                print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
-        
-        # Add to writer
-        writer.add_scalar("Loss/train:", tr_loss[i], i)
-        writer.add_scalar("Accuracy/train:", tr_acc[i], i)
-        if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in tr_recall])
-                precision_label = np.mean([val[index] for val in tr_precision])
-                writer.add_scalar("Recall/" + label + "_train", recall_label,i)
-                writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+        if settings['verbose']:
+            print("Training Accuracy:" + str(np.mean(tr_acc)))    
+            print("Training Loss:" + str(np.mean(tr_loss)))
+            
+            # Verbose recall and precision
+            if settings["database"]["label"] == "multilabel":
+                for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                    recall_label = np.mean([val[index] for val in tr_recall])
+                    precision_label = np.mean([val[index] for val in tr_precision])
+                    print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
+                    print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
+            
+            # Add to writer
+            writer.add_scalar("Loss/train:", tr_loss[i], i)
+            writer.add_scalar("Accuracy/train:", tr_acc[i], i)
+            if settings["database"]["label"] == "multilabel":
+                for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                    recall_label = np.mean([val[index] for val in tr_recall])
+                    precision_label = np.mean([val[index] for val in tr_precision])
+                    writer.add_scalar("Recall/" + label + "_train", recall_label,i)
+                    writer.add_scalar("Precision/" + label + "_train", precision_label,i)
         
         # Test 
         model.eval()
@@ -250,17 +251,20 @@ def main():
                 recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
                 tst_recall.append(recall_epoch)
                 tst_precision.append(precision_epoch)
+                
+                
         # Verbose
-        print("Test Accuracy:" + str(np.mean(tst_acc)))    
-        print("Test Loss:" + str(np.mean(tst_loss)))   
-        
-        # Verbose recall and precision
-        if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in tst_recall])
-                precision_label = np.mean([val[index] for val in tst_precision])
-                print("Test recall for " + label + " " + str(np.round(recall_label, decimals=3)))
-                print("Test precision for " + label + " " + str(np.round(precision_label, decimals=3)))
+        if settings['verbose']:
+            print("Test Accuracy:" + str(np.mean(tst_acc)))    
+            print("Test Loss:" + str(np.mean(tst_loss)))   
+            
+            # Verbose recall and precision
+            if settings["database"]["label"] == "multilabel":
+                for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                    recall_label = np.mean([val[index] for val in tst_recall])
+                    precision_label = np.mean([val[index] for val in tst_precision])
+                    print("Test recall for " + label + " " + str(np.round(recall_label, decimals=3)))
+                    print("Test precision for " + label + " " + str(np.round(precision_label, decimals=3)))
                 
         # Add to writer
         writer.add_scalar("Loss/test:", tst_loss[i], i)
@@ -278,21 +282,6 @@ def main():
             
     # Flush writer
     writer.flush()
-    
-    # Write metrics 
-    metrics_loss_acc = pd.DataFrame({'training_loss':tr_loss, 'test_loss':tst_loss,
-                            'training_accuracy': tr_acc, 'test_accuracy': tst_acc})
-    metrics_loss_acc.to_csv('metrics_loss_acc_BS_' + str(settings['param']['batch_size']) + '.csv', header=True, index=False)
-
-    metrics_recall_tr, metrics_recall_tst = pd.DataFrame.from_records(tr_recall), pd.DataFrame.from_records(tst_recall)
-    metrics_recall = pd.concat([metrics_recall_tr, metrics_recall_tst])
-    metrics_recall.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
-    pd.to_csv(metrics_recall, 'metrics_recall_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
-
-    metrics_precision_tr, metrics_precision_tst = pd.DataFrame.from_records(tr_precision), pd.DataFrame.from_records(tst_precision)
-    metrics_precision = pd.concat([metrics_precision_tr, metrics_precision_tst])
-    metrics_precision.columns = list(map(add, ["HA", "NP", "HCRT", 'negative']*2, ['_train']*4 + ['_test']*4))
-    pd.to_csv(metrics_precision, 'metrics_precision_BS'+ str(settings['param']['batch_size']) + '.csv', index= False, header=True)
     
 
 if __name__ == "__main__":
