@@ -211,15 +211,15 @@ def main():
                     print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
                     print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
             
-            # Add to writer
-            writer.add_scalar("Loss/train:", tr_loss[i], i)
-            writer.add_scalar("Accuracy/train:", tr_acc[i], i)
-            if settings["database"]["label"] == "multilabel":
-                for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                    recall_label = np.mean([val[index] for val in tr_recall])
-                    precision_label = np.mean([val[index] for val in tr_precision])
-                    writer.add_scalar("Recall/" + label + "_train", recall_label,i)
-                    writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+        # Add to writer
+        writer.add_scalar("Loss/train:", tr_loss[i], i)
+        writer.add_scalar("Accuracy/train:", tr_acc[i], i)
+        if settings["database"]["label"] == "multilabel":
+            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+                recall_label = np.mean([val[index] for val in tr_recall])
+                precision_label = np.mean([val[index] for val in tr_precision])
+                writer.add_scalar("Recall/" + label + "_train", recall_label,i)
+                writer.add_scalar("Precision/" + label + "_train", precision_label,i)
         
         # Test 
         model.eval()
