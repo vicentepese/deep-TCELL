@@ -91,7 +91,12 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
-        
+    
+    # Initialize task
+    task = Task.init(project_name='protein_binding', task_name='deep-TCELL')
+    configuration_dict = settings['h_param']
+    configuration_dict = task.connect(configuration_dict)  # enabling configuration override by clearml
+    print(configuration_dict)  # printing actual configuration (after override in remote mode)
 
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -121,7 +126,7 @@ def main():
     test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
     # Crate dataloaders
-    loader_params = {'batch_size': settings["param"]["batch_size"],
+    loader_params = {'batch_size': configuration_dict.get('batch_size'),
                 'shuffle': True,
                 'num_workers': 0
                 }
@@ -133,7 +138,7 @@ def main():
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
                                 problem_type="multi_label_classification",
-                                hidden_dropout_prob=0.1)
+                                hidden_dropout_prob=configuration_dict.get('dropout'))
     
     # Create the model and add to
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
@@ -149,7 +154,7 @@ def main():
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
+    optimizer = torch.optim.Adam(params=model.parameters(), lr = configuration_dict.get('learning_rate'))
         
     # Training routine 
     max_acc = 0
