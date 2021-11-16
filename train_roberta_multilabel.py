@@ -19,6 +19,11 @@ from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
+
+from trains.automation import UniformParameterRange, UniformIntegerParameterRange
+from trains.automation import HyperParameterOptimizer
+from trains.automation.optuna import OptimizerOptuna
+from trains import Task
    
 class CDR3Dataset(Dataset):
     
@@ -86,17 +91,7 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
-
-    # Parse arguments for optimization
-    parser = argparse.ArgumentParser(description='Optimization parameters')
-    parser.add_argument('--batch_size', type = int, help='batch size of the dataloaders', default=None)
-
-    # Execute the parse_args() method
-    args = parser.parse_args()
-
-    # Check arguments 
-    if args.batch_size is not None:
-        settings['param']['batch_size'] = args.batch_size
+        
 
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
