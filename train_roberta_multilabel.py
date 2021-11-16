@@ -23,7 +23,7 @@ from sklearn.metrics import recall_score, precision_score
 from trains.automation import UniformParameterRange, UniformIntegerParameterRange
 from trains.automation import HyperParameterOptimizer
 from trains.automation.optuna import OptimizerOptuna
-from trains import Task
+from clearml import Task
    
 class CDR3Dataset(Dataset):
     
@@ -108,7 +108,7 @@ def main():
     np.random.seed(seed_nr)
     
     # Initialize tensorboard session
-    writer = SummaryWriter()
+    writer = SummaryWriter('./runs')
 
     # Create tonekizer from tokenizers library 
     if settings["param"]["tokenizer"] == "BPE":
