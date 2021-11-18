@@ -21,6 +21,7 @@ from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
 
 from clearml import Task
+import optuna
    
 class CDR3Dataset(Dataset):
     
