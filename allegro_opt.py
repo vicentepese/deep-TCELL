@@ -9,7 +9,7 @@ def main():
                     task_name='Hyper-Parameter Optimization')
 
     optimizer = HyperParameterOptimizer(
-        base_task_id="7474bfaca1e64cd1b432e33a4783d51e",  
+        base_task_id="a020ed9f85564708aff0e91cf55f9835",  
         # setting the hyper-parameters to optimize
             hyper_parameters=[
                 UniformIntegerParameterRange('batch_size', min_value=8, max_value=32, step_size=8),
