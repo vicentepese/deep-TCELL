@@ -20,9 +20,6 @@ from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
 
-from trains.automation import UniformParameterRange, UniformIntegerParameterRange
-from trains.automation import HyperParameterOptimizer
-from trains.automation.optuna import OptimizerOptuna
 from clearml import Task
    
 class CDR3Dataset(Dataset):
@@ -97,7 +94,7 @@ def main():
     configuration_dict = settings['h_param']
     configuration_dict = task.connect(configuration_dict)  # enabling configuration override by clearml
     print(configuration_dict)  # printing actual configuration (after override in remote mode)
-
+    
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
@@ -126,7 +123,7 @@ def main():
     test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
     # Crate dataloaders
-    loader_params = {'batch_size': configuration_dict.get('batch_size'),
+    loader_params = {'batch_size': configuration_dict.get('batch_size', 8),
                 'shuffle': True,
                 'num_workers': 0
                 }
@@ -138,7 +135,7 @@ def main():
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
                                 problem_type="multi_label_classification",
-                                hidden_dropout_prob=configuration_dict.get('dropout'))
+                                hidden_dropout_prob=configuration_dict.get('dropout', 0.1))
     
     # Create the model and add to
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
@@ -154,7 +151,7 @@ def main():
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = configuration_dict.get('learning_rate'))
+    optimizer = torch.optim.Adam(params=model.parameters(), lr = configuration_dict.get('learning_rate', 1e-5))
         
     # Training routine 
     max_acc = 0
@@ -195,8 +192,8 @@ def main():
                 metrics['tr_acc'] += [(n_correct*100)/targets.size(0)]
 
         # Add to writer
-        writer.add_scalar("Loss/train:", np.mean(metrics['tr_loss']), i)
-        writer.add_scalar("Accuracy/train:", np.mean(metrics['tr_acc']), i)
+        writer.add_scalar("Loss/train", np.mean(metrics['tr_loss']), i)
+        writer.add_scalar("Accuracy/train", np.mean(metrics['tr_acc']), i)
         if settings["database"]["label"] == "multilabel":
             for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
                 recall_label = np.mean([val[index] for val in metrics['tr_recall']])
@@ -234,8 +231,8 @@ def main():
                 metrics['tst_acc'] += [(n_correct*100)/targets.size(0)]
 
         # Add to writer
-        writer.add_scalar("Loss/test:", np.mean(metrics['tst_loss']), i)
-        writer.add_scalar("Accuracy/test:", np.mean(metrics['tst_acc']), i)
+        writer.add_scalar("Loss/test", np.mean(metrics['tst_loss']), i)
+        writer.add_scalar("Accuracy/test", np.mean(metrics['tst_acc']), i)
         if settings["database"]["label"] == "multilabel":
             for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
                 recall_label = np.mean([val[index] for val in metrics['tst_recall']])
