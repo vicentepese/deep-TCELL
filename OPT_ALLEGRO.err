@@ -1,0 +1,4 @@
+/home/users/vipese/Projects/deep-TCELL/env/lib64/python3.6/site-packages/redis/connection.py:77: UserWarning: redis-py works best with hiredis. Please consider installing
+  warnings.warn(msg)
+[32m[I 2021-11-19 01:30:52,115][0m A new study created in memory with name: eb39065986b54ce9900b4007fd35a69f[0m
+slurmstepd: error: *** JOB 38591469 ON sh03-12n12 CANCELLED AT 2021-11-19T01:49:02 ***
