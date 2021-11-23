@@ -1,17 +1,11 @@
 #!/bin/bash 
-#SBATCH --job-name=OPT_BATCH_SIZE
-#SBATCH --output=OPT_BATCH_SIZE_${SLURM_ARRAY_TASK_ID}.out
-#SBATCH --error=OPT_BATCH_SIZE_${SLURM_ARRAY_TASK_ID}.err
+#SBATCH --job-name=OPT_ALLEGRO
+#SBATCH --output=OPT_ALLEGRO.out
+#SBATCH --error=OPT_ALLEGRO.err
 #SBATCH -p gpu
-#SBATCH --time=08:00:00
-#SBATCH -G 1
-#SBATCH -C GPU_MEM:24GB
-#SBATCH -C GPU_BRD:TESLA
-#SBATCH --array=0-4
-
-# Optimize batch size 
-BATCH_SIZE=(8 16 24 32)
+#SBATCH --time=05:00:00
+#SBATCH -G 5
 
 # Submit
 source env/bin/activate
-python3 train_roberta_multilabel.py --batch_size ${BATCH_SIZE[$SLURM_ARRAY_TASK_ID]}
+python3 allegro_opt.py
