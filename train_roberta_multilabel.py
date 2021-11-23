@@ -89,15 +89,27 @@ def main():
 
     # Parse arguments for optimization
     parser = argparse.ArgumentParser(description='Optimization parameters')
+    parser.add_argument('--opt', type = bool, help="if true set optimization routine", default=False)
     parser.add_argument('--batch_size', type = int, help='batch size of the dataloaders', default=None)
+    parser.add_argument('--learning_rate',type = float, help="learning rate of optimizer", default=None)
+    parser.add_argument('--dropout', type = float, help="hidden layer and classifier dropout", default=None)
 
     # Execute the parse_args() method
     args = parser.parse_args()
-
-    # Check arguments 
-    if args.batch_size is not None:
+    
+    # Set hyperparameters if optimization routine 
+    if args.opt:
         settings['param']['batch_size'] = args.batch_size
+        settings['param']['learning_rate'] = args.learning_rate
+        settings['param']['dropout'] = args.dropout
 
+    # Print 
+    if args.opt:
+        print("Optimizing parameters:")
+        print("Batch_size:" + str(settings['param']['batch_size']))
+        print("Learning rate: " + str(settings['param']['learning_rate']))
+        print("Dropout: " + str(settings['param']['dropout']))
+        
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
