@@ -92,12 +92,12 @@ def main():
     
     # Initialize task
     task = Task.init(project_name='protein_binding', task_name='deep-TCELL')
-    configuration_dict = settings['h_param']
-    configuration_dict = task.connect(configuration_dict)  # enabling configuration override by clearml
+    configuration_dict = {'batch_size': 32, 'dropout': 0.1, 'learning_rate': 1e-5}
+    configuration_dict = task.connect(configuration_dict) # enabling configuration override by clearml
     print(configuration_dict)  # printing actual configuration (after override in remote mode)
     
     # Set device 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
     
     # Set random seed
@@ -124,7 +124,7 @@ def main():
     test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
     # Crate dataloaders
-    loader_params = {'batch_size': configuration_dict.get('batch_size', 8),
+    loader_params = {'batch_size': configuration_dict.get('batch_size', 32),
                 'shuffle': True,
                 'num_workers': 0
                 }

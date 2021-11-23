@@ -35,7 +35,8 @@ def main():
             project_name='protein_binding', task_name='deep-TCELL').id
 
     optimizer = HyperParameterOptimizer(
-        base_task_id=args['template_task_id'],  
+        base_task_id="b0c204b3865d4ff0a0fed6cc02a3c0b1",  
+        
         # setting the hyper-parameters to optimize
             hyper_parameters=[
                 UniformIntegerParameterRange('batch_size', min_value=8, max_value=32, step_size=8),
