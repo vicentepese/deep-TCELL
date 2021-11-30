@@ -88,23 +88,31 @@ def main():
         settings = json.load(inFile)
         
     # Create random sample hyperparameter
-    settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
-    settings['param']['learning_rate'] = np.random.uniform(settings['opt_param']['learning_rate'][0], settings['opt_param']['learning_rate'][1])
-    settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
+    if settings['opt_param']:
+        print("Optimizing parameters:")
+        if "batch_size" in settings['opt_param']:
+            settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
+            print("Batch_size:" + str(settings['param']['batch_size']))
+        if "learning_rate" in settings['opt_param']:
+            settings['param']['learning_rate'] = np.random.uniform(settings['opt_param']['learning_rate'][0],
+                                                                   settings['opt_param']['learning_rate'][1])
+            print("Learning rate: " + str(settings['param']['learning_rate']))
+        if "dropout" in settings['opt_param']:
+            settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
+            print("Dropout: " + str(settings['param']['dropout']))
 
-    # Parse arguments for optimization
-    parser = argparse.ArgumentParser(description='Optimization parameters')
-    parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
+        # Parse arguments for optimization
+        parser = argparse.ArgumentParser(description='Optimization parameters')
+        parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
 
-    # Execute the parse_args() method
-    args = parser.parse_args()
-    print(args.jobid)
-    
-    # Print 
-    print("Optimizing parameters:")
-    print("Batch_size:" + str(settings['param']['batch_size']))
-    print("Learning rate: " + str(settings['param']['learning_rate']))
-    print("Dropout: " + str(settings['param']['dropout']))
+        # Execute the parse_args() method
+        args = parser.parse_args()
+        print(args.jobid)
+        
+        # Initialize tensorboard session
+        writer = SummaryWriter('runs/' + str(args.jobid))
+    else:
+        writer = SummaryWriter()
         
     # Set device 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -114,9 +122,6 @@ def main():
     seed_nr = 1964
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
-    
-    # Initialize tensorboard session
-    writer = SummaryWriter('runs/' + str(args.jobid))
 
     # Create tonekizer from tokenizers library 
     if settings["param"]["tokenizer"] == "BPE":
