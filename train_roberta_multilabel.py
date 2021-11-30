@@ -142,7 +142,7 @@ def main():
     test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
     # Crate dataloaders
-    loader_params = {'batch_size': configuration_dict.get('batch_size', 32),
+    loader_params = {'batch_size': settings["param"]['batch_size'],
                 'shuffle': True,
                 'num_workers': 0
                 }
@@ -170,7 +170,7 @@ def main():
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = configuration_dict.get('learning_rate', 1e-5))
+    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]['learning_rate'])
         
     # Training routine 
     max_acc = 0
