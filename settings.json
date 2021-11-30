@@ -1,20 +1,20 @@
 {
     "dir":{
-        "Data":"./Data/",
-        "Resources":"./Resources/",
-        "utils":"./utils", 
-        "Outputs":"./Outputs/"
+        "Data":"/home/users/vipese/Projects/deep-TCELL/Data/",
+        "Resources":"/home/users/vipese/Projects/deep-TCELL/Resources/",
+        "utils":"/home/users/vipese/Projects/deep-TCELL/utils", 
+        "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/"
     },
 
     "file":{
-        "TCR_activated":"Resources/TCR_activated_ml.csv",
-        "TCR_negative":"Resources/TCR_negative_ml.csv",
-        "BPEtokenizer_data":"Resources/BPEtoken_train_dict.txt",
-        "WLtokenizer_data":"Resources/WLtoken_train_dict.txt",
-        "PMBEC_matrix":"Resources/PMBEC.csv",
-        "TCR_data":"Data/TCR_data.csv",
-        "train_data":"Data/train_data.csv", 
-        "test_data":"Data/test_data.csv"
+        "TCR_activated":"/home/users/vipese/Projects/deep-TCELL/Resources/TCR_activated_ml.csv",
+        "TCR_negative":"/home/users/vipese/Projects/deep-TCELL/Resources/TCR_negative_ml.csv",
+        "BPEtokenizer_data":"/home/users/vipese/Projects/deep-TCELL/Resources/BPEtoken_train_dict.txt",
+        "WLtokenizer_data":"/home/users/vipese/Projects/deep-TCELL/Resources/WLtoken_train_dict.txt",
+        "PMBEC_matrix":"/home/users/vipese/Projects/deep-TCELL/Resources/PMBEC.csv",
+        "TCR_data":"/home/users/vipese/Projects/deep-TCELL/Data/TCR_data.csv",
+        "train_data":"/home/users/vipese/Projects/deep-TCELL/Data/train_data.csv", 
+        "test_data":"/home/users/vipese/Projects/deep-TCELL/Data/test_data.csv"
     }, 
 
     "database":{
@@ -22,15 +22,16 @@
     },
 
     "tokenizer":{
-        "BPE":"tokenizer/BPE/BPE.json",
+        "BPE":"/home/users/vipese/Projects/deep-TCELL/tokenizer/BPE/BPE.json",
         "BPE_min_freq":10,
-        "WL":"tokenizer/WL/WL.json"
+        "WL":"/home/users/vipese/Projects/deep-TCELL/tokenizer/WL/WL.json"
     },
 
     "opt_param":{
         "batch_size":[32], 
         "learning_rate":[1e-6, 1e-5],
         "dropout":[0.1, 0.2, 0.3, 0.4, 0.5]
+
     },
 
     "param":{
@@ -40,7 +41,7 @@
         "batch_size":16,
         "learning_rate":1e-5,
         "weight_decay":0,
-        "n_epochs":100
+        "n_epochs":10
     },
 
     "verbose":false

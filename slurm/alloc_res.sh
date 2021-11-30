@@ -1,2 +1,2 @@
 #!/bin/bash 
-salloc -p gpu -c 1 -G 1 -C GPU_BRD:TESLA -t 08:00:00
+salloc -p gpu -N 2 --gpus-per-node 1 --cpus-per-gpu 1 --time 03:00:00

@@ -19,6 +19,9 @@ from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
+
+from clearml import Task
+import optuna
    
 class CDR3Dataset(Dataset):
     
@@ -114,8 +117,9 @@ def main():
     else:
         writer = SummaryWriter()
         
+
     # Set device 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
     
     # Set random seed
@@ -138,7 +142,7 @@ def main():
     test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
     # Crate dataloaders
-    loader_params = {'batch_size': settings["param"]["batch_size"],
+    loader_params = {'batch_size': configuration_dict.get('batch_size', 32),
                 'shuffle': True,
                 'num_workers': 0
                 }
@@ -151,6 +155,7 @@ def main():
                                 num_hidden_layers = 12,
                                 problem_type="multi_label_classification",
                                 hidden_dropout_prob=settings['param']['dropout'])
+
     
     # Create the model and add to
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
@@ -165,7 +170,7 @@ def main():
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]["learning_rate"])
+    optimizer = torch.optim.Adam(params=model.parameters(), lr = configuration_dict.get('learning_rate', 1e-5))
         
     # Training routine 
     max_acc = 0
@@ -208,6 +213,7 @@ def main():
             precision_label = np.mean([val[index] for val in metrics_epoch['tr_precision']])
             writer.add_scalar("Recall/" + label + "_train", recall_label,i)
             writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+
                 
         # Test 
         model.eval()
@@ -241,6 +247,7 @@ def main():
             precision_label = np.mean([val[index] for val in metrics_epoch['tst_precision']])
             writer.add_scalar("Recall/" + label + "_test", recall_label, i)
             writer.add_scalar("Precision/" + label + "_test", precision_label, i)
+
         
         # Save model 
         if max_acc < np.max(metrics_epoch['tr_acc']):
