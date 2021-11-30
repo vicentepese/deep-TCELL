@@ -89,13 +89,35 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
-    
-    # Initialize task
-    task = Task.init(project_name='protein_binding', task_name='deep-TCELL')
-    configuration_dict = {'batch_size': 32, 'dropout': 0.1, 'learning_rate': 1e-5}
-    configuration_dict = task.connect(configuration_dict) # enabling configuration override by clearml
-    print(configuration_dict)  # printing actual configuration (after override in remote mode)
-    
+        
+    # Create random sample hyperparameter
+    if settings['opt_param']:
+        print("Optimizing parameters:")
+        if "batch_size" in settings['opt_param']:
+            settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
+            print("Batch_size:" + str(settings['param']['batch_size']))
+        if "learning_rate" in settings['opt_param']:
+            settings['param']['learning_rate'] = np.random.uniform(settings['opt_param']['learning_rate'][0],
+                                                                   settings['opt_param']['learning_rate'][1])
+            print("Learning rate: " + str(settings['param']['learning_rate']))
+        if "dropout" in settings['opt_param']:
+            settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
+            print("Dropout: " + str(settings['param']['dropout']))
+
+        # Parse arguments for optimization
+        parser = argparse.ArgumentParser(description='Optimization parameters')
+        parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
+
+        # Execute the parse_args() method
+        args = parser.parse_args()
+        print(args.jobid)
+        
+        # Initialize tensorboard session
+        writer = SummaryWriter('runs/' + str(args.jobid))
+    else:
+        writer = SummaryWriter()
+        
+
     # Set device 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
@@ -104,9 +126,6 @@ def main():
     seed_nr = 1964
     torch.manual_seed(seed_nr)
     np.random.seed(seed_nr)
-    
-    # Initialize tensorboard session
-    writer = SummaryWriter('./runs')
 
     # Create tonekizer from tokenizers library 
     if settings["param"]["tokenizer"] == "BPE":
@@ -116,7 +135,6 @@ def main():
     else:
         raise ValueError("Unknown tokenizer. Tokenizer argument must be BPE or WL.")
     tokenizer.enable_padding()
-
         
     # Create training and test dataset
     dataset_params={"label":settings["database"]["label"], "tokenizer":tokenizer}
@@ -136,16 +154,16 @@ def main():
                                 num_attention_heads = 12,
                                 num_hidden_layers = 12,
                                 problem_type="multi_label_classification",
-                                hidden_dropout_prob=configuration_dict.get('dropout', 0.1))
+                                hidden_dropout_prob=settings['param']['dropout'])
+
     
     # Create the model and add to
-    model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=0.1)
+    model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
     model.to(device)
     
     # Add to model and hyperparameter to writer
     item = next(iter(train_dataloader))
-    writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
-    
+    # writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
     
     # Initialize model weights
     model.apply(init_weights)
@@ -158,7 +176,7 @@ def main():
     max_acc = 0
     for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
-        metrics = defaultdict(list)
+        metrics_epoch = defaultdict(list)
         for data in train_dataloader:
             
             # Prepare data
@@ -167,11 +185,11 @@ def main():
             targets = data["target"].to(device)
             
             # Forward pass 
-            output=model(ids, attention_mask)
+            output = model(ids, attention_mask)
             loss = loss_function(output, targets.to(torch.float32))
             
             # Compute loss
-            metrics['tr_loss'] += [loss.cpu().detach().numpy()]
+            metrics_epoch['tr_loss'] += [loss.cpu().detach().numpy()]
             
             # Back propagation
             optimizer.zero_grad()
@@ -181,26 +199,21 @@ def main():
             optimizer.step()
             
             # Compoute multi label accuracies and recall, or acc
-            if settings["database"]["label"] == "multilabel":
-                out_label = prob2label(output, threshold=0.5)
-                metrics['tr_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
-                recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-                metrics['tr_recall'].append(recall_epoch)
-                metrics['tr_precision'].append(precision_epoch)
-            else:
-                _, big_idx = torch.max(output.data, dim=1)
-                n_correct = calcuate_accu(big_idx, targets)
-                metrics['tr_acc'] += [(n_correct*100)/targets.size(0)]
+            out_label = prob2label(output, threshold=0.5)
+            metrics_epoch['tr_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
+            recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+            metrics_epoch['tr_recall'].append(recall_epoch)
+            metrics_epoch['tr_precision'].append(precision_epoch)
 
         # Add to writer
-        writer.add_scalar("Loss/train", np.mean(metrics['tr_loss']), i)
-        writer.add_scalar("Accuracy/train", np.mean(metrics['tr_acc']), i)
-        if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in metrics['tr_recall']])
-                precision_label = np.mean([val[index] for val in metrics['tr_precision']])
-                writer.add_scalar("Recall/" + label + "_train", recall_label,i)
-                writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+        writer.add_scalar("Loss/train:", np.mean(metrics_epoch['tr_loss']), i)
+        writer.add_scalar("Accuracy/train:", np.mean(metrics_epoch['tr_acc']), i)
+        for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+            recall_label = np.mean([val[index] for val in metrics_epoch['tr_recall']])
+            precision_label = np.mean([val[index] for val in metrics_epoch['tr_precision']])
+            writer.add_scalar("Recall/" + label + "_train", recall_label,i)
+            writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+
                 
         # Test 
         model.eval()
@@ -216,39 +229,38 @@ def main():
 
             # Compute loss
             loss = loss_function(output, targets.to(torch.float32))
-            metrics['tst_loss'] += [loss.cpu().detach().numpy()]
+            metrics_epoch['tst_loss'] += [loss.cpu().detach().numpy()]
             
             # Compoute multi label accuracies
-            if settings["database"]["label"] == "multilabel":
-                out_label = prob2label(output, threshold=1/len(output[0]))
-                metrics['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
-                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-                metrics['tst_recall'].append(recall_epoch)
-                metrics['tst_precision'].append(precision_epoch)
-                
-            else:
-                _, big_idx = torch.max(output.data, dim=1)
-                n_correct = calcuate_accu(big_idx, targets)
-                metrics['tst_acc'] += [(n_correct*100)/targets.size(0)]
+            out_label = prob2label(output, threshold=1/len(output[0]))
+            metrics_epoch['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
+            recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+            metrics_epoch['tst_recall'].append(recall_epoch)
+            metrics_epoch['tst_precision'].append(precision_epoch)
+
 
         # Add to writer
-        writer.add_scalar("Loss/test", np.mean(metrics['tst_loss']), i)
-        writer.add_scalar("Accuracy/test", np.mean(metrics['tst_acc']), i)
-        if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
-                recall_label = np.mean([val[index] for val in metrics['tst_recall']])
-                precision_label = np.mean([val[index] for val in metrics['tst_precision']])
-                writer.add_scalar("Recall/" + label + "_test", recall_label, i)
-                writer.add_scalar("Precision/" + label + "_test", precision_label, i)
+        writer.add_scalar("Loss/test:", np.mean(metrics_epoch['tst_loss']), i)
+        writer.add_scalar("Accuracy/test:", np.mean(metrics_epoch['tst_acc']), i)
+        for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+            recall_label = np.mean([val[index] for val in metrics_epoch['tst_recall']])
+            precision_label = np.mean([val[index] for val in metrics_epoch['tst_precision']])
+            writer.add_scalar("Recall/" + label + "_test", recall_label, i)
+            writer.add_scalar("Precision/" + label + "_test", precision_label, i)
+
         
         # Save model 
-        if max_acc < np.max(metrics['tr_acc']):
+        if max_acc < np.max(metrics_epoch['tr_acc']):
             torch.save(model, 'best_model')
+    
+    metrics_hp={'tr_acc':np.mean(metrics_epoch['tr_acc']), 
+                'tr_loss':np.mean(metrics_epoch['tr_loss']),
+                'tst_acc':np.mean(metrics_epoch['tst_acc']), 
+                'tst_loss':np.mean(metrics_epoch['tst_loss'])
         
-    # Write hyperparameter
-    metrics_hp = {k:np.mean(v) for k,v in metrics.items()}
+    }
     writer.add_hparams(settings['param'], metrics_hp)
-            
+
     # Flush writer
     writer.flush()
     

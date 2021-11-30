@@ -1,11 +1,12 @@
 #!/bin/bash 
-#SBATCH --job-name=OPT_ALLEGRO
-#SBATCH --output=OPT_ALLEGRO.out
-#SBATCH --error=OPT_ALLEGRO.err
+
+#SBATCH --job-name=OPT
 #SBATCH -p gpu
-#SBATCH --time=05:00:00
-#SBATCH -G 5
+#SBATCH --time=03:00:00
+#SBATCH -G 1
+#SBATCH -N 1
+#SBATCH --array=0-10
 
 # Submit
 source env/bin/activate
-python3 allegro_opt.py
+python3 train_roberta_multilabel.py --jobid $SLURM_JOBID
