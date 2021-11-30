@@ -163,7 +163,7 @@ def main():
     
     # Add to model and hyperparameter to writer
     item = next(iter(train_dataloader))
-    # writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
+    writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
     
     # Initialize model weights
     model.apply(init_weights)
