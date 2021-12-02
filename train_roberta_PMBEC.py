@@ -24,14 +24,14 @@ from sklearn.metrics import recall_score
 class CDR3EmbeddingDataset(Dataset):
     
     def __init__(self, settings:dict, train:bool=True, padding:bool=True) -> None:
-        
+        cols = ["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "activated_any", "multilabel", "negative"]
         if train: 
             self.path_to_data = settings["file"]["train_data"]
         else:
             self.path_to_data = settings["file"]["test_data"]
         self.data = pd.read_csv(self.path_to_data)
         self.embeddings_template = pd.read_csv(settings["file"]["PMBEC_matrix"])
-        self.n_labels = 3
+        self.n_labels = 4
         self.max_len = self.data.CDR3ab.str.len().max()
         self.num_AA = self.embeddings_template.shape[0]
     
@@ -46,7 +46,7 @@ class CDR3EmbeddingDataset(Dataset):
         item ={
             "ids": embeddings,
             "attention_mask": torch.ones(size = embeddings.shape, dtype=torch.float64),
-            "target": tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index], 
+            "target": tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "negative"]].iloc[index], 
                             dtype=torch.float64)
         }
         return item 
@@ -153,7 +153,7 @@ def main():
             
             # Forward pass 
             output = model(ids, attention_mask)
-            loss = loss_function(output, targets.to(torch.float32))
+            loss = loss_function(output, targets.to(torch.float64))
             
             # Compute loss
             metrics_epoch['tr_loss'] += [loss.cpu().detach().numpy()]
@@ -195,7 +195,7 @@ def main():
             output=model(ids, attention_mask)
 
             # Compute loss
-            loss = loss_function(output, targets.to(torch.float32))
+            loss = loss_function(output, targets.to(torch.float64))
             metrics_epoch['tst_loss'] += [loss.cpu().detach().numpy()]
             
             # Compoute multi label accuracies
