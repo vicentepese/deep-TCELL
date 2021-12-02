@@ -6,13 +6,16 @@ import torch
 from torch._C import dtype
 from torch.nn.modules import padding
 from torch.optim import optimizer
-
+from collections import defaultdict
 from utils.utils import *
+import argparse
 from tqdm import tqdm 
 from models.robert_embeddings import Net
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor 
+from torch.utils.tensorboard import SummaryWriter
+
 
 from transformers import RobertaConfig
 
@@ -57,10 +60,37 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile:
         settings = json.load(inFile)
+    
+    # Create random sample hyperparameter
+    if settings['opt_param']:
+        print("Optimizing parameters:")
+        if "batch_size" in settings['opt_param']:
+            settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
+            print("Batch_size:" + str(settings['param']['batch_size']))
+        if "learning_rate" in settings['opt_param']:
+            settings['param']['learning_rate'] = np.random.uniform(settings['opt_param']['learning_rate'][0],
+                                                                   settings['opt_param']['learning_rate'][1])
+            print("Learning rate: " + str(settings['param']['learning_rate']))
+        if "dropout" in settings['opt_param']:
+            settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
+            print("Dropout: " + str(settings['param']['dropout']))
+
+        # Parse arguments for optimization
+        parser = argparse.ArgumentParser(description='Optimization parameters')
+        parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
+
+        # Execute the parse_args() method
+        args = parser.parse_args()
+        print(args.jobid)
         
+        # Initialize tensorboard session
+        writer = SummaryWriter('runs/' + str(args.jobid))
+    else:
+        writer = SummaryWriter()    
     
     # Set device 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Using device: " + device)
     
     # Set random seed
     seed_nr = 1964
@@ -81,9 +111,9 @@ def main():
     
     # Create model configuration 
     model_config = RobertaConfig(
-        attention_probs_dropout_prob=0.1,
+        attention_probs_dropout_prob=settings['param']['dropout'],
         hidden_act="gelu",
-        hidden_dropout_prob=0.1,
+        hidden_dropout_prob=settings['param']['dropout'],
         hidden_size=20,
         max_position_embeddings=512,
         num_attention_heads=10,
@@ -94,9 +124,13 @@ def main():
     # Create model 
     model = Net(n_labels=train_data.n_labels,
                 model_config=model_config, 
-                classifier_drouput=0.1)
+                classifier_drouput=settings['param']['dropout'])
     model.to(device)
     model = model.double()
+    
+    # Add to model and hyperparameter to writer
+    item = next(iter(train_dataloader))
+    writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
     
     # Initialize weights
     model.apply(init_weights)
@@ -106,12 +140,10 @@ def main():
     optimizer = torch.optim.Adam(params=model.parameters(), lr=settings["param"]["learning_rate"])
     
     # Training routine 
-    for _ in tqdm(range(settings["param"]["n_epochs"])):
+    max_acc = 0
+    for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
-        tr_loss, tst_loss = [], []
-        tr_acc, tst_acc = [], []
-        tr_recall, tst_recall = [], []
-        tr_precision, tst_precision = [], []
+        metrics_epoch = defaultdict(list)
         for data in train_dataloader:
             
             # Prepare data
@@ -120,11 +152,11 @@ def main():
             targets = data["target"].to(device)
             
             # Forward pass 
-            output=model(input_ids=ids, attention_mask=attention_mask)
-            loss = loss_function(output, targets)
+            output = model(ids, attention_mask)
+            loss = loss_function(output, targets.to(torch.float32))
             
             # Compute loss
-            tr_loss += [loss.cpu().detach().numpy()]
+            metrics_epoch['tr_loss'] += [loss.cpu().detach().numpy()]
             
             # Back propagation
             optimizer.zero_grad()
@@ -133,34 +165,23 @@ def main():
             # Update weights
             optimizer.step()
             
-            # Compoute multi label accuracies
-            if settings["database"]["label"] == "multilabel":
-                out_label = prob2label(output, threshold=1/len(output[0]))
-                tr_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
-            else:
-                _, big_idx = torch.max(output.data, dim=1)
-                n_correct = calcuate_accu(big_idx, targets)
-                tr_acc += [(n_correct*100)/targets.size(0)]
-            
-            # Compute recall and precision
-            if settings["database"]["label"] == "multilabel":
-                recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-                tr_recall.append(recall_epoch)
-                tr_precision.append(precision_epoch)
+            # Compoute multi label accuracies and recall, or acc
+            out_label = prob2label(output, threshold=0.5)
+            metrics_epoch['tr_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
+            recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+            metrics_epoch['tr_recall'].append(recall_epoch)
+            metrics_epoch['tr_precision'].append(precision_epoch)
 
-        # Verbose
-        print("Training Accuracy:" + str(np.mean(tr_acc)))    
-        print("Training Loss:" + str(np.mean(tr_loss)))
-        
-        # Verbose recall and precision
-        if settings["database"]["label"] == "multilabel":
-            for label, index in zip(["HA", "NP", "HCRT"], range(3)):
-                recall_label = np.mean([val[index] for val in tr_recall])
-                precision_label = np.mean([val[index] for val in tr_precision])
-                print("Training recall for " + label + " " + str(np.round(recall_label, decimals=3)))
-                print("Training precision for " + label + " " + str(np.round(precision_label, decimals=3)))
-        
+        # Add to writer
+        writer.add_scalar("Loss/train:", np.mean(metrics_epoch['tr_loss']), i)
+        writer.add_scalar("Accuracy/train:", np.mean(metrics_epoch['tr_acc']), i)
+        for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+            recall_label = np.mean([val[index] for val in metrics_epoch['tr_recall']])
+            precision_label = np.mean([val[index] for val in metrics_epoch['tr_precision']])
+            writer.add_scalar("Recall/" + label + "_train", recall_label,i)
+            writer.add_scalar("Precision/" + label + "_train", precision_label,i)
 
+                
         # Test 
         model.eval()
         for data in test_dataloader:
@@ -174,22 +195,41 @@ def main():
             output=model(ids, attention_mask)
 
             # Compute loss
-            loss = loss_function(output, targets)
-            tst_loss += [loss.cpu().detach().numpy()]
+            loss = loss_function(output, targets.to(torch.float32))
+            metrics_epoch['tst_loss'] += [loss.cpu().detach().numpy()]
             
-             # Compoute multi label accuracies
-            if settings["database"]["label"] == "multilabel":
-                out_label = prob2label(output, threshold=1/len(output[0]))
-                tst_acc += [multilabelaccuracy(out_label, targets.to("cpu"))]
-            else:
-                _, big_idx = torch.max(output.data, dim=1)
-                n_correct = calcuate_accu(big_idx, targets)
-                tst_acc += [(n_correct*100)/targets.size(0)]
-        # Verbose
-        print("Test Accuracy:" + str(np.mean(tst_acc)))    
-        print("Test Loss:" + str(np.mean(tst_loss)))   
-            
+            # Compoute multi label accuracies
+            out_label = prob2label(output, threshold=1/len(output[0]))
+            metrics_epoch['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
+            recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+            metrics_epoch['tst_recall'].append(recall_epoch)
+            metrics_epoch['tst_precision'].append(precision_epoch)
+
+
+        # Add to writer
+        writer.add_scalar("Loss/test:", np.mean(metrics_epoch['tst_loss']), i)
+        writer.add_scalar("Accuracy/test:", np.mean(metrics_epoch['tst_acc']), i)
+        for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+            recall_label = np.mean([val[index] for val in metrics_epoch['tst_recall']])
+            precision_label = np.mean([val[index] for val in metrics_epoch['tst_precision']])
+            writer.add_scalar("Recall/" + label + "_test", recall_label, i)
+            writer.add_scalar("Precision/" + label + "_test", precision_label, i)
+
+        
+        # Save model 
+        if max_acc < np.max(metrics_epoch['tr_acc']):
+            torch.save(model, 'best_model')
     
+    metrics_hp={'tr_acc':np.mean(metrics_epoch['tr_acc']), 
+                'tr_loss':np.mean(metrics_epoch['tr_loss']),
+                'tst_acc':np.mean(metrics_epoch['tst_acc']), 
+                'tst_loss':np.mean(metrics_epoch['tst_loss'])
+        
+    }
+    writer.add_hparams(settings['param'], metrics_hp)
+
+    # Flush writer
+    writer.flush()
     
 
 if __name__ == "__main__":
