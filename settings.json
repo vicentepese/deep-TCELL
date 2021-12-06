@@ -28,9 +28,7 @@
     },
 
     "opt_param":{
-        "batch_size":[32],
-        "learning_rate":[1e-5, 1e-5],
-        "dropout":[0.1,0.2,0.3,0.4,0.5]
+
     },
 
     "param":{
@@ -38,7 +36,7 @@
         "test_split":0.7, 
         "equal":"False",
         "batch_size":32,
-        "learning_rate":1e-5,
+        "learning_rate":1e-4,
         "weight_decay":0,
         "n_epochs":100,
         "dropout":0.1
