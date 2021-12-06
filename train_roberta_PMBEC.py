@@ -84,9 +84,9 @@ def main():
         print(args.jobid)
         
         # Initialize tensorboard session
-        writer = SummaryWriter('runs/' + str(args.jobid))
+        writer = SummaryWriter('runs/PMBEC' + str(args.jobid))
     else:
-        writer = SummaryWriter()    
+        writer = SummaryWriter('runs/PMBEC')    
     
     # Set device 
     device = "cuda" if torch.cuda.is_available() else "cpu"
