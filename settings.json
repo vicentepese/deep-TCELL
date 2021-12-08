@@ -35,11 +35,11 @@
         "tokenizer":"WL",
         "test_split":0.7, 
         "equal":"False",
-        "batch_size":32,
-        "learning_rate":1e-4,
+        "batch_size":64,
+        "learning_rate":5e-4,
         "weight_decay":0,
         "n_epochs":100,
-        "dropout":0.1
+        "dropout":0.2
     },
 
     "verbose":false

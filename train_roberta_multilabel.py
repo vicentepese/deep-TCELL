@@ -147,9 +147,9 @@ def main():
     test_dataloader = DataLoader(test_data, **loader_params)
     
     model_config = RobertaConfig(vocab_size = tokenizer.get_vocab_size(),
-                                hidden_size = 1032,
-                                num_attention_heads = 12,
-                                num_hidden_layers = 12,
+                                hidden_size = 1024,
+                                num_attention_heads = 16,
+                                num_hidden_layers = 24,
                                 problem_type="multi_label_classification",
                                 hidden_dropout_prob=settings['param']['dropout'])
 
