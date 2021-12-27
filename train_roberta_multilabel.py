@@ -46,7 +46,7 @@ class CDR3Dataset(Dataset):
         
         if label == "multilabel":
             self.labels = [0,1]
-            self.n_labels = 4
+            self.n_labels = 3
         else:
             self.labels = np.unique(self.data[[self.label]])
             self.n_labels = len(self.labels)
@@ -72,7 +72,7 @@ class CDR3Dataset(Dataset):
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
         if self.label == "multilabel":
-            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT", "negative"]].iloc[index],dtype =torch.long)
+            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index],dtype =torch.long)
         else:
             item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
         return item
@@ -94,8 +94,7 @@ def main():
             settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
             print("Batch_size:" + str(settings['param']['batch_size']))
         if "learning_rate" in settings['opt_param']:
-            settings['param']['learning_rate'] = np.random.uniform(settings['opt_param']['learning_rate'][0],
-                                                                   settings['opt_param']['learning_rate'][1])
+            settings['param']['learning_rate'] =  np.random.choice(settings['opt_param']['learning_rate'],1).item()
             print("Learning rate: " + str(settings['param']['learning_rate']))
         if "dropout" in settings['opt_param']:
             settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
@@ -147,11 +146,11 @@ def main():
     test_dataloader = DataLoader(test_data, **loader_params)
     
     model_config = RobertaConfig(vocab_size = tokenizer.get_vocab_size(),
-                                hidden_size = 1024,
-                                num_attention_heads = 16,
-                                num_hidden_layers = 24,
-                                problem_type="multi_label_classification",
-                                hidden_dropout_prob=settings['param']['dropout'])
+                               hidden_size = 1032,
+                               num_attention_heads = 12,
+                               num_hidden_layers = 12,
+                               problem_type="multi_label_classification",
+                               hidden_dropout_prob=settings['param']['dropout'])
 
     
     # Create the model and add to
@@ -205,7 +204,7 @@ def main():
         # Add to writer
         writer.add_scalar("Loss/train:", np.mean(metrics_epoch['tr_loss']), i)
         writer.add_scalar("Accuracy/train:", np.mean(metrics_epoch['tr_acc']), i)
-        for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+        for label, index in zip(["HA", "NP", "HCRT"], range(4)):
             recall_label = np.mean([val[index] for val in metrics_epoch['tr_recall']])
             precision_label = np.mean([val[index] for val in metrics_epoch['tr_precision']])
             writer.add_scalar("Recall/" + label + "_train", recall_label,i)
@@ -239,7 +238,7 @@ def main():
         # Add to writer
         writer.add_scalar("Loss/test:", np.mean(metrics_epoch['tst_loss']), i)
         writer.add_scalar("Accuracy/test:", np.mean(metrics_epoch['tst_acc']), i)
-        for label, index in zip(["HA", "NP", "HCRT", 'negative'], range(4)):
+        for label, index in zip(["HA", "NP", "HCRT"], range(4)):
             recall_label = np.mean([val[index] for val in metrics_epoch['tst_recall']])
             precision_label = np.mean([val[index] for val in metrics_epoch['tst_precision']])
             writer.add_scalar("Recall/" + label + "_test", recall_label, i)

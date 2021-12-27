@@ -5,7 +5,7 @@
 #SBATCH --time=03:00:00
 #SBATCH -G 1
 #SBATCH -N 1
-#SBATCH --array=0-10
+#SBATCH --array=0-20
 
 # Submit
 source env/bin/activate
