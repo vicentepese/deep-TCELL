@@ -24,11 +24,14 @@ def get_token_train_data(settings:dict) -> list():
     # Read data 
     data_act = pd.read_csv(settings["file"]["TCR_activated"])
     data_neg = pd.read_csv(settings["file"]["TCR_negative"])
-
+    
     # Merge 
-    cols = ["CDR3ab", "activated_by"]
+    cols = ["TRAV_CDR1","TRAV_CDR2", "CDR3a", "TRBV_CDR1", "TRBV_CDR2", "CDR3b", "activated_by"]
     tcr_df = pd.concat([data_act[cols], data_neg[cols]])
     tcr_df.to_csv(settings["file"]["TCR_data"], header=True, index=False)
+    
+    # Create CDR3 including CDR1-2 and 3
+    tcr_df["CDR"] = tcr_df[["TRAV_CDR1","TRAV_CDR2", "CDR3a", "TRBV_CDR1", "TRBV_CDR2", "CDR3b"]].agg('_'.join, axis=1)
 
     # Split train test and merge
     X_test, X_train = train_test_split(tcr_df, test_size=settings["param"]["test_split"])
@@ -50,7 +53,7 @@ def get_token_train_data(settings:dict) -> list():
             
     # Write file to train tokenizer 
     with open(settings["file"]["WLtokenizer_data"],"w") as outFile:
-        for cdr in X_train.CDR3ab:
+        for cdr in X_train.CDR:
             outFile.write(" ".join(list(cdr)) + "\n")
             
 def tokenization_pipeline(settings:dict) -> None:
