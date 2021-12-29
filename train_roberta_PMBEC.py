@@ -84,9 +84,9 @@ def main():
         print(args.jobid)
         
         # Initialize tensorboard session
-        writer = SummaryWriter('runs/PMBEC' + str(args.jobid))
+        writer = SummaryWriter(settings['dir']['runs'] + str(args.jobid))
     else:
-        writer = SummaryWriter('runs/PMBEC')    
+        writer = SummaryWriter(settings['dir']['runs'])    
     
     # Set device 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -112,13 +112,9 @@ def main():
     # Create model configuration 
     model_config = RobertaConfig(
         attention_probs_dropout_prob=settings['param']['dropout'],
-        hidden_act="gelu",
         hidden_dropout_prob=settings['param']['dropout'],
-        hidden_size=20,
-        max_position_embeddings=512,
-        num_attention_heads=10,
-        num_hidden_layers=10,
-        vocab_size=21
+        vocab_size=21,
+        **settings['model_config']
     )
     
     # Create model 
