@@ -37,11 +37,18 @@
         "test_split":0.7, 
         "equal":"False",
         "batch_size":64,
-        "learning_rate":2e-5,
+        "learning_rate":1e-5,
         "weight_decay":0,
-        "n_epochs":200,
+        "n_epochs":100,
         "dropout":0.2
     },
+
+    "model_config":{
+        "hidden_size":1032,
+        "num_attention_heads":12,
+        "num_hidden_layers":12
+    },
+    
 
     "verbose":false
 }
