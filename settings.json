@@ -3,7 +3,8 @@
         "Data":"/home/users/vipese/Projects/deep-TCELL/Data/",
         "Resources":"/home/users/vipese/Projects/deep-TCELL/Resources/",
         "utils":"/home/users/vipese/Projects/deep-TCELL/utils", 
-        "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/"
+        "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/",
+        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/"
     },
 
     "file":{
