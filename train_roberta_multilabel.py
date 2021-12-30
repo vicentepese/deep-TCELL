@@ -51,22 +51,22 @@ class CDR3Dataset(Dataset):
             self.labels = np.unique(self.data[[self.label]])
             self.n_labels = len(self.labels)
             
-        self.max_len = self.data.CDR3ab.str.len().max()
+        self.max_len = self.data.CDR.str.len().max()
         
         self.tokenizer = tokenizer
         
     def __getitem__(self, index:int):
         if isinstance(self.tokenizer.model, tokenizers.models.WordLevel):
             self.tokenizer.enable_padding(length=self.max_len)
-            CDR3ab = " ".join(list(self.data.CDR3ab[index]))
-            encodings = self.tokenizer.encode(CDR3ab)
+            CDR = " ".join(list(self.data.CDR[index]))
+            encodings = self.tokenizer.encode(CDR)
             item = {
                 "ids":tensor(encodings.ids, dtype=torch.long),
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
                 }
         elif isinstance(self.tokenizer.model, tokenizers.models.BPE):
             self.tokenizer.enable_padding(length=self.max_len)
-            encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
+            encodings = self.tokenizer.encode(self.data.CDR[index]) 
             item = {
                 "ids":tensor(encodings.ids, dtype=torch.long),
                 "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
