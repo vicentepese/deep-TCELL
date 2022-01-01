@@ -6,6 +6,7 @@
 #SBATCH -G 1
 #SBATCH -N 1
 #SBATCH --array=0-20
+#SBATCH -C GPU_BRD:TESLA
 
 # Submit
 source env/bin/activate
