@@ -4,7 +4,7 @@
         "Resources":"/home/users/vipese/Projects/deep-TCELL/Resources/",
         "utils":"/home/users/vipese/Projects/deep-TCELL/utils", 
         "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/",
-        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/"
+        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/CDR12_large_32/"
     },
 
     "file":{
@@ -29,24 +29,26 @@
     },
 
     "opt_param":{
-      
+        "learning_rate":[3e-5, 4e-5],
+        "batch_size":[32,63,128],
+        "dropout":[0.1, 0.2, 0.3]
     },
 
     "param":{
         "tokenizer":"WL",
         "test_split":0.7, 
         "equal":"False",
-        "batch_size":64,
+        "batch_size":128,
         "learning_rate":2e-5,
         "weight_decay":0,
         "n_epochs":100,
-        "dropout":0.2
+        "dropout":0.3
     },
 
     "model_config":{
-        "hidden_size":1032,
-        "num_attention_heads":12,
-        "num_hidden_layers":12
+        "hidden_size":32,
+        "num_attention_heads":16,
+        "num_hidden_layers":24
     },
     
 
