@@ -109,9 +109,9 @@ def main():
         print(args.jobid)
         
         # Initialize tensorboard session
-        writer = SummaryWriter('runs/' + str(args.jobid))
+        writer = SummaryWriter(settings['dir']['runs'] + str(args.jobid))
     else:
-        writer = SummaryWriter()
+        writer = SummaryWriter(settings['dir']['runs'])
         
 
     # Set device 
