@@ -1,10 +1,11 @@
 #!/bin/bash 
 
 #SBATCH --job-name=OPT
-#SBATCH -p gpu
+#SBATCH -p owners
 #SBATCH --time=03:00:00
 #SBATCH -G 1
 #SBATCH -N 1
+#SBATCH -C GPU_MEM:32GB
 #SBATCH --array=0-20
 
 # Submit
