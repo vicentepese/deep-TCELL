@@ -13,9 +13,9 @@ class Net(nn.Module):
       
       self.l1 = RobertaModel(self.config)
       self.l1_out_dim = self.l1.pooler.dense.out_features  
-      self.pre_classifier = nn.Linear(self.l1_out_dim,self.l1_out_dim)
+      self.pre_classifier = nn.Linear(self.l1_out_dim,4096)
       self.dropout = nn.Dropout(classifier_dropout)
-      self.classifier = nn.Linear(self.l1_out_dim, self.n_labels)
+      self.classifier = nn.Linear(4096, self.n_labels)
       
     def forward(self, input_ids:tensor, attention_mask:tensor, inputs_embeds:bool=None) -> tensor:
       if inputs_embeds is not None and input_ids is None:

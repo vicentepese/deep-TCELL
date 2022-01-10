@@ -5,7 +5,7 @@ T-cell HLA complex bingind prediction through NLP and Transformers
 Roberta Multi-label:
 model_config = RobertaConfig(vocab_size = tokenizer.get_vocab_size(),
                             hidden_size = 1032,
-                            num_attention_heads = 12,
+                            num_atte0ntion_heads = 12,
                             num_hidden_layers = 12,
                             problem_type="multi_label_classification",
                             hidden_dropout_prob=settings['param']['dropout'])

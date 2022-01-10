@@ -43,9 +43,10 @@ def get_token_train_data(settings:dict) -> list():
     for key in tcr_df_set.keys():
         data_pre = tcr_df_set[key]
         data_pre["num_label"] = le.transform(data_pre.activated_by)
-        data_pre["activatedby_HA"] = data_pre.num_label.apply(lambda x: 1 if x in [0,1,2] else 0)
-        data_pre["activatedby_HCRT"] = data_pre.num_label.apply(lambda x: 1 if x in [1,3,4] else 0)
-        data_pre["activatedby_NP"] = data_pre.num_label.apply(lambda x: 1 if x in [2,4,5] else 0)
+        data_pre.drop(data_pre[data_pre.num_label.isin([1,2,4])].index, inplace=True)
+        data_pre["activatedby_HA"] = data_pre.num_label.apply(lambda x: 1 if x in [0] else 0)
+        data_pre["activatedby_HCRT"] = data_pre.num_label.apply(lambda x: 1 if x in [3] else 0)
+        data_pre["activatedby_NP"] = data_pre.num_label.apply(lambda x: 1 if x in [5] else 0)
         data_pre["negative"] = data_pre.num_label.apply(lambda x: 1 if x == 6 else 0)
         data_pre["activated_any"] = data_pre.num_label.apply(lambda x: 1 if x != 6 else 0)
         data_pre.to_csv(tcr_df_path[key], index=False, header=True)
