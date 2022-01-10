@@ -19,6 +19,10 @@ from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
+
+import tensorflow as tf
+import tensorboard as tb
+tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
    
 class CDR3Dataset(Dataset):
     
@@ -168,9 +172,9 @@ def main():
         
     # Training routine 
     max_acc = 0
+    metrics_epoch = defaultdict(list)
     for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
-        metrics_epoch = defaultdict(list)
         target_epoch, out_epoch = [], []
         for data in train_dataloader:
             
@@ -194,16 +198,18 @@ def main():
             optimizer.step()
             
             # Move target to CPU, convert to numpy and append to epoch
-            targets = targets.to("cpu").detatch().numpy()
-            target_epoch.append(targets)
+            targets = targets.to("cpu").numpy().tolist()
+            target_epoch += targets
             
             # Compoute multi label accuracies and recall, or acc
             out_label = prob2label(output, threshold=0.5)
-            out_epoch.append(out_label)
+            out_epoch += out_label
         
         # Compute metrics
-        metrics_epoch['tr_acc'] += [multilabelaccuracy(out_label, targets)]
-        recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+        # TODO: Include individual acc
+        _, overall_acc = multilabelaccuracy(out_label, targets)
+        metrics_epoch['tr_acc'] += [overall_acc]
+        recall_epoch, precision_epoch = get_recall_precision(y_true=target_epoch, y_pred=out_epoch)
         metrics_epoch['tr_recall'].append(recall_epoch)
         metrics_epoch['tr_precision'].append(precision_epoch)
 
@@ -215,10 +221,10 @@ def main():
             precision_label = np.mean([val[index] for val in metrics_epoch['tr_precision']])
             writer.add_scalar("Recall/" + label + "_train", recall_label,i)
             writer.add_scalar("Precision/" + label + "_train", precision_label,i)
-
-                
+            
         # Test 
         model.eval()
+        target_epoch, out_epoch = [], []
         for data in test_dataloader:
             
             # Prepare data
@@ -233,12 +239,20 @@ def main():
             loss = loss_function(output, targets.to(torch.float32))
             metrics_epoch['tst_loss'] += [loss.cpu().detach().numpy()]
             
-            # Compoute multi label accuracies
-            out_label = prob2label(output, threshold=1/len(output[0]))
-            metrics_epoch['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
-            recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-            metrics_epoch['tst_recall'].append(recall_epoch)
-            metrics_epoch['tst_precision'].append(precision_epoch)
+            # Move target to CPU, convert to numpy and append to epoch
+            targets = targets.to("cpu").numpy().tolist()
+            target_epoch += targets
+            
+            # Compoute multi label accuracies and recall, or acc
+            out_label = prob2label(output, threshold=0.5)
+            out_epoch += out_label
+            
+        # Compoute multi label accuracies
+        _, overall_acc = multilabelaccuracy(out_label, targets)
+        metrics_epoch['tst_acc'] += [overall_acc]
+        recall_epoch, precision_epoch = get_recall_precision(y_true=target_epoch, y_pred=out_epoch)
+        metrics_epoch['tst_recall'].append(recall_epoch)
+        metrics_epoch['tst_precision'].append(precision_epoch)
 
 
         # Add to writer
@@ -254,15 +268,21 @@ def main():
         # Save model 
         if max_acc < np.max(metrics_epoch['tr_acc']):
             torch.save(model, 'best_model')
+            
+    # Add embedding 
+    writer.add_embedding(model.l1.embeddings.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()])
+                
     
-    metrics_hp={'tr_acc':np.mean(metrics_epoch['tr_acc']), 
-                'tr_loss':np.mean(metrics_epoch['tr_loss']),
-                'tst_acc':np.mean(metrics_epoch['tst_acc']), 
-                'tst_loss':np.mean(metrics_epoch['tst_loss'])
+    metrics_hp={'tr_acc':metrics_epoch['tr_acc'][-1], 
+                'tr_loss':metrics_epoch['tr_loss'][-1],
+                'tst_acc':metrics_epoch['tst_acc'][-1], 
+                'tst_loss':metrics_epoch['tst_loss'][-1]
         
     }
     writer.add_hparams(settings['param'], metrics_hp)
+    
 
+    
     # Flush writer
     writer.flush()
     
