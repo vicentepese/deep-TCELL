@@ -2,11 +2,11 @@
 
 #SBATCH --job-name=OPT
 #SBATCH -p owners
-#SBATCH --time=03:00:00
+#SBATCH --time=04:00:00
 #SBATCH -G 1
 #SBATCH -N 1
 #SBATCH --array=0-20
-#SBATCH  -C GPU_MEM:16GB
+#SBATCH  -C GPU_MEM:32GB
 
 # Submit
 source env/bin/activate
