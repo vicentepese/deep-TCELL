@@ -151,7 +151,7 @@ def main():
                                **settings['model_config'])
 
     
-    # Create the model and add to
+    # Create the model and move to device
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
     model.to(device)
     
@@ -171,6 +171,7 @@ def main():
     for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
         metrics_epoch = defaultdict(list)
+        target_epoch, out_epoch = [], []
         for data in train_dataloader:
             
             # Prepare data
@@ -192,12 +193,19 @@ def main():
             # Update weights
             optimizer.step()
             
+            # Move target to CPU, convert to numpy and append to epoch
+            targets = targets.to("cpu").detatch().numpy()
+            target_epoch.append(targets)
+            
             # Compoute multi label accuracies and recall, or acc
             out_label = prob2label(output, threshold=0.5)
-            metrics_epoch['tr_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
-            recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-            metrics_epoch['tr_recall'].append(recall_epoch)
-            metrics_epoch['tr_precision'].append(precision_epoch)
+            out_epoch.append(out_label)
+        
+        # Compute metrics
+        metrics_epoch['tr_acc'] += [multilabelaccuracy(out_label, targets)]
+        recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
+        metrics_epoch['tr_recall'].append(recall_epoch)
+        metrics_epoch['tr_precision'].append(precision_epoch)
 
         # Add to writer
         writer.add_scalar("Loss/train:", np.mean(metrics_epoch['tr_loss']), i)

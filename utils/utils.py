@@ -33,7 +33,7 @@ def prob2label(output:torch.tensor, threshold:float) -> torch.tensor:
     out_label = []
     for sample in output:
         out_label.append([1 if prob > threshold else 0 for prob in sample])
-    return tensor(out_label)
+    return out_label
 
 def multilabelaccuracy(out_label:torch.tensor, targets:torch.tensor) -> np.array:
     """multilabelaccuracy [summary]
