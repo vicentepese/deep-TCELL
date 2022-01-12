@@ -20,9 +20,9 @@ from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
 from sklearn.metrics import recall_score, precision_score
 
-import tensorflow as tf
-import tensorboard as tb
-tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
+# import tensorflow as tf
+# import tensorboard as tb
+# tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
    
 class CDR3Dataset(Dataset):
     
