@@ -4,7 +4,7 @@
         "Resources":"/home/users/vipese/Projects/deep-TCELL/Resources/",
         "utils":"/home/users/vipese/Projects/deep-TCELL/utils", 
         "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/",
-        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/CDR3_base_1032_4096/"
+        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/test/"
     },
 
     "file":{
@@ -29,19 +29,16 @@
     },
 
     "opt_param":{
-        "batch_size":[32, 64, 128],
-        "learning_rate":[1e-5, 0.5e-5,2e-5],
-        "dropout":[0.1, 0.2, 0.3]
     },
 
     "param":{
         "tokenizer":"WL",
         "test_split":0.7, 
         "equal":"False",
-        "batch_size":128,
+        "batch_size":32,
         "learning_rate":1e-5,
         "weight_decay":0,
-        "n_epochs":200,
+        "n_epochs":10,
         "dropout":0.1
     },
 
