@@ -94,13 +94,13 @@ def compute_metrics(metrics:dict, output:list, targets:list) -> dict:
     
     # Compute accuracies and append 
     indv_acc, overall_acc = multilabelaccuracy(output, targets)
-    metrics['acc'] += [overall_acc]
-    metrics['indv_acc'] += [indv_acc]
+    metrics['acc'] = overall_acc
+    metrics['indv_acc'] = indv_acc
 
     # Compute recall and precision, and append
     recall_epoch, precision_epoch = get_recall_precision(y_true=targets, y_pred=output)
-    metrics['recall'].append(recall_epoch)
-    metrics['precision'].append(precision_epoch)
+    metrics['recall']  = recall_epoch
+    metrics['precision']  = precision_epoch
     
     return metrics
 
@@ -118,14 +118,12 @@ def write_metrics(metrics:dict, writer:SummaryWriter, train:bool, epoch:int) -> 
     type = "train" if train else "test"
     
     # Write metrics
-    writer.add_scalar("Loss/" + type + ":", metrics['loss'], epoch)
+    writer.add_scalar("Loss/" + type + ":", np.mean(metrics['loss']), epoch)
     writer.add_scalar("Accuracy/" + type + ":", metrics['acc'], epoch)
     writer.add_scalar("Individual Accuracy/" + type + ":", metrics['indv_acc'], epoch)
     for label, index in zip(["HA", "NP", "HCRT"], range(3)):
-        recall_label = [val[index] for val in metrics['recall']]
-        precision_label = [val[index] for val in metrics['precision']]
-        writer.add_scalar("Recall/" + label + "_" + type, recall_label,epoch)
-        writer.add_scalar("Precision/" + label + "_" + type, precision_label,epoch)
+        writer.add_scalar("Recall/" + label + "_" + type, metrics['recall'][index],epoch)
+        writer.add_scalar("Precision/" + label + "_" + type, metrics['precision'][index],epoch)
 
 def main():
     
@@ -284,17 +282,17 @@ def main():
         write_metrics(metrics_test, writer, train=False, epoch=i)
 
         # Save model 
-        if max_acc < np.max(metrics_epoch['tr_acc']):
+        if max_acc < np.max(metrics_train['acc']):
             torch.save(model, 'best_model')
             
     # Add embedding 
     writer.add_embedding(model.l1.embeddings.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()])
 
     # Add hyperparameter metrics            
-    metrics_hp={'tr_acc':metrics_epoch['tr_acc'][-1], 
-                'tr_loss':metrics_epoch['tr_loss'][-1],
-                'tst_acc':metrics_epoch['tst_acc'][-1], 
-                'tst_loss':metrics_epoch['tst_loss'][-1]
+    metrics_hp={'tr_acc':metrics_train['acc'], 
+                'tr_loss':metrics_train['loss'],
+                'tst_acc':metrics_test['acc'], 
+                'tst_loss':metrics_test['loss']
         
     }
     writer.add_hparams(settings['param'], metrics_hp)
