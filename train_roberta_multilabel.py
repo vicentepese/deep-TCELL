@@ -227,7 +227,7 @@ def main():
             loss = loss_function(output, targets.to(torch.float32))
             
             # Compute loss
-            metrics_train['loss'] += [loss.cpu().detach().numpy()]
+            metrics_train['loss'].append(loss.cpu().detach().numpy().item())
             
             # Back propagation
             optimizer.zero_grad()
