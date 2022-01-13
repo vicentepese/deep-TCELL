@@ -265,7 +265,7 @@ def main():
 
             # Compute loss
             loss = loss_function(output, targets.to(torch.float32))
-            metrics_test['tst_loss'] += [loss.cpu().detach().numpy()]
+            metrics_test['loss'].append(loss.cpu().detach().numpy().item())
             
             # Move target to CPU, convert to numpy and append to epoch
             targets = targets.to("cpu").numpy().tolist()
