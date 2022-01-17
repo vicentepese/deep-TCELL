@@ -38,6 +38,7 @@ class CDR3Dataset(Dataset):
               
         self.path_to_data = path_to_data
         self.data = pd.read_csv(self.path_to_data)
+
         if equal == True:
             min_sample=np.min(self.data[self.label].value_counts()) 
             data_pos = self.data[self.data[self.label]==1].sample(min_sample)
@@ -80,6 +81,49 @@ class CDR3Dataset(Dataset):
     def __len__(self):
         return len(self.data)
 
+def compute_metrics(metrics:dict, output:list, targets:list) -> dict:
+    """compute_metrics [Compute accuracy and individual accuracy, recall, precision]
+
+    Args:
+        metrics (dict): [Metrics dictionary]
+        output  (list): [List with the output of the epoch converted to labels, (N_samples, N_labels)]
+        targets (list): [List with the target of the epoch, (N_samples, N_labels)]
+    Returns:
+        dict: [Dictionary with the metrics of the epoch]
+    """
+    
+    # Compute accuracies and append 
+    indv_acc, overall_acc = multilabelaccuracy(output, targets)
+    metrics['acc'] = overall_acc
+    metrics['indv_acc'] = indv_acc
+
+    # Compute recall and precision, and append
+    recall_epoch, precision_epoch = get_recall_precision(y_true=targets, y_pred=output)
+    metrics['recall']  = recall_epoch
+    metrics['precision']  = precision_epoch
+    
+    return metrics
+
+def write_metrics(metrics:dict, writer:SummaryWriter, train:bool, epoch:int) -> None:
+    """write_metrics [Write metrics from dictionary to summary writer]
+
+    Args:
+        metrics (dict): [Dictionary of metrics]
+        writter (SummaryWriter): [Summary writer of the experiment]
+        train (bool): [Train metrics dictionnary]
+        epoch (int): [Epoch index]
+    """
+    
+    # Train or test type
+    type = "train" if train else "test"
+    
+    # Write metrics
+    writer.add_scalar("Loss/" + type + ":", np.mean(metrics['loss']), epoch)
+    writer.add_scalar("Accuracy/" + type + ":", metrics['acc'], epoch)
+    writer.add_scalar("Individual Accuracy/" + type + ":", metrics['indv_acc'], epoch)
+    for label, index in zip(["HA", "NP", "HCRT"], range(3)):
+        writer.add_scalar("Recall/" + label + "_" + type, metrics['recall'][index],epoch)
+        writer.add_scalar("Precision/" + label + "_" + type, metrics['precision'][index],epoch)
 
 def main():
     
@@ -113,7 +157,6 @@ def main():
     else:
         writer = SummaryWriter(settings['dir']['runs'])
         
-
     # Set device 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using device: " + device)
@@ -145,13 +188,13 @@ def main():
     train_dataloader = DataLoader(train_data, **loader_params)
     test_dataloader = DataLoader(test_data, **loader_params)
     
+    # Model configuration
     model_config = RobertaConfig(vocab_size = tokenizer.get_vocab_size(),
                                problem_type="multi_label_classification",
                                hidden_dropout_prob=settings['param']['dropout'],
                                **settings['model_config'])
 
-    
-    # Create the model and add to
+    # Create the model and move to device
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
     model.to(device)
     
@@ -168,9 +211,10 @@ def main():
         
     # Training routine 
     max_acc = 0
+    metrics_train, metrics_test = defaultdict(list), defaultdict(list)
     for i in tqdm(range(settings["param"]["n_epochs"])):
         model.train()
-        metrics_epoch = defaultdict(list)
+        target_epoch, out_epoch = [], []
         for data in train_dataloader:
             
             # Prepare data
@@ -183,7 +227,7 @@ def main():
             loss = loss_function(output, targets.to(torch.float32))
             
             # Compute loss
-            metrics_epoch['tr_loss'] += [loss.cpu().detach().numpy()]
+            metrics_train['loss'].append(loss.cpu().detach().numpy().item())
             
             # Back propagation
             optimizer.zero_grad()
@@ -192,25 +236,23 @@ def main():
             # Update weights
             optimizer.step()
             
+            # Move target to CPU, convert to numpy and append to epoch
+            targets = targets.to("cpu").numpy().tolist()
+            target_epoch += targets
+            
             # Compoute multi label accuracies and recall, or acc
             out_label = prob2label(output, threshold=0.5)
-            metrics_epoch['tr_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
-            recall_epoch, precision_epoch = get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-            metrics_epoch['tr_recall'].append(recall_epoch)
-            metrics_epoch['tr_precision'].append(precision_epoch)
+            out_epoch += out_label
+        
+        # Compute metrics
+        metrics_train = compute_metrics(metrics_train, out_epoch, target_epoch)
 
         # Add to writer
-        writer.add_scalar("Loss/train:", np.mean(metrics_epoch['tr_loss']), i)
-        writer.add_scalar("Accuracy/train:", np.mean(metrics_epoch['tr_acc']), i)
-        for label, index in zip(["HA", "NP", "HCRT"], range(4)):
-            recall_label = np.mean([val[index] for val in metrics_epoch['tr_recall']])
-            precision_label = np.mean([val[index] for val in metrics_epoch['tr_precision']])
-            writer.add_scalar("Recall/" + label + "_train", recall_label,i)
-            writer.add_scalar("Precision/" + label + "_train", precision_label,i)
+        write_metrics(metrics_train, writer, train=True, epoch=i)
 
-                
         # Test 
         model.eval()
+        target_epoch, out_epoch = [], []
         for data in test_dataloader:
             
             # Prepare data
@@ -223,38 +265,38 @@ def main():
 
             # Compute loss
             loss = loss_function(output, targets.to(torch.float32))
-            metrics_epoch['tst_loss'] += [loss.cpu().detach().numpy()]
+            metrics_test['loss'].append(loss.cpu().detach().numpy().item())
             
-            # Compoute multi label accuracies
-            out_label = prob2label(output, threshold=1/len(output[0]))
-            metrics_epoch['tst_acc'] += [multilabelaccuracy(out_label, targets.to("cpu"))]
-            recall_epoch, precision_epoch =get_recall_precision(y_true=targets.to("cpu"), y_pred=out_label)
-            metrics_epoch['tst_recall'].append(recall_epoch)
-            metrics_epoch['tst_precision'].append(precision_epoch)
-
+            # Move target to CPU, convert to numpy and append to epoch
+            targets = targets.to("cpu").numpy().tolist()
+            target_epoch += targets
+            
+            # Compoute multi label accuracies and recall, or acc
+            out_label = prob2label(output, threshold=0.5)
+            out_epoch += out_label
+            
+        # Compute metrics
+        metrics_test = compute_metrics(metrics_test, out_epoch, target_epoch)
 
         # Add to writer
-        writer.add_scalar("Loss/test:", np.mean(metrics_epoch['tst_loss']), i)
-        writer.add_scalar("Accuracy/test:", np.mean(metrics_epoch['tst_acc']), i)
-        for label, index in zip(["HA", "NP", "HCRT"], range(4)):
-            recall_label = np.mean([val[index] for val in metrics_epoch['tst_recall']])
-            precision_label = np.mean([val[index] for val in metrics_epoch['tst_precision']])
-            writer.add_scalar("Recall/" + label + "_test", recall_label, i)
-            writer.add_scalar("Precision/" + label + "_test", precision_label, i)
+        write_metrics(metrics_test, writer, train=False, epoch=i)
 
-        
         # Save model 
-        if max_acc < np.max(metrics_epoch['tr_acc']):
+        if max_acc < np.max(metrics_train['acc']):
             torch.save(model, 'best_model')
-    
-    metrics_hp={'tr_acc':np.mean(metrics_epoch['tr_acc']), 
-                'tr_loss':np.mean(metrics_epoch['tr_loss']),
-                'tst_acc':np.mean(metrics_epoch['tst_acc']), 
-                'tst_loss':np.mean(metrics_epoch['tst_loss'])
+            
+    # Add embedding 
+    writer.add_embedding(model.l1.embeddings.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()])
+
+    # Add hyperparameter metrics            
+    metrics_hp={'training_accuracy':np.max(metrics_train['acc']), 
+                'training_loss':np.mean(metrics_train['loss']),
+                'test_accuracy':np.mean(metrics_test['acc']), 
+                'test_loss':np.mean(metrics_test['loss'])
         
     }
     writer.add_hparams(settings['param'], metrics_hp)
-
+    
     # Flush writer
     writer.flush()
     

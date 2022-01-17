@@ -1,7 +1,7 @@
 import torch 
 import numpy as np 
 from torch import nn, tensor
-from sklearn.metrics import recall_score, precision_score
+from sklearn.metrics import recall_score, precision_score, accuracy_score
 
 def init_weights(layer:torch.nn) -> torch.nn.Linear:
     """init_weights [Initializes weight of Linear layers of he model]
@@ -33,33 +33,41 @@ def prob2label(output:torch.tensor, threshold:float) -> torch.tensor:
     out_label = []
     for sample in output:
         out_label.append([1 if prob > threshold else 0 for prob in sample])
-    return tensor(out_label)
+    return out_label
 
-def multilabelaccuracy(out_label:torch.tensor, targets:torch.tensor) -> np.array:
+def multilabelaccuracy(out_label:list, targets:list) -> np.array:
     """multilabelaccuracy [summary]
 
     Args:
-        out_label (torch.tensor): [Binary array with labels]
-        targets (torch.tensor): [Binary targets]
+        out_label (list): [Binary array with labels]
+        targets (list): [Binary targets]
 
     Returns:
         np.array: [Percentage of correctly labeled targets]
     """
     
-    return torch.sum(out_label==targets)/(np.sum([len(target) for target in targets]))
+    # Individual accuracy
+    ind_acc = accuracy_score(out_label, targets)
     
-def get_recall_precision(y_true, y_pred) -> list:
+    # Overall accuracy
+    flat_out = [out for tcr in out_label for out in tcr]
+    flat_target = [target for tcr in targets for target in tcr]
+    overall_acc = accuracy_score(flat_out, flat_target)
+    
+    return ind_acc, overall_acc
+    
+def get_recall_precision(y_true:list, y_pred:list) -> list:
     """get_recall [Computes recall for each of the labels (columns)]
 
     Args:
-        y_true ([type]): [True labels / targets]
-        y_pred ([type]): [Predicted labels]
+        y_true ([list]): [True labels / targets]
+        y_pred ([list]): [Predicted labels]
 
     Returns:
         np.array: [description]
     """
-    y_true = list(map(list, zip(*y_true.tolist())))
-    y_pred = list(map(list, zip(*y_pred.tolist())))
+    y_true = list(map(list, zip(*y_true)))
+    y_pred = list(map(list, zip(*y_pred)))
     
     recall, precision = [], []
     for i in range(len(y_true)):
