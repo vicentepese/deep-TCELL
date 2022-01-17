@@ -289,10 +289,10 @@ def main():
     writer.add_embedding(model.l1.embeddings.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()])
 
     # Add hyperparameter metrics            
-    metrics_hp={'tr_acc':metrics_train['acc'], 
-                'tr_loss':metrics_train['loss'],
-                'tst_acc':metrics_test['acc'], 
-                'tst_loss':metrics_test['loss']
+    metrics_hp={'training_accuracy':np.max(metrics_train['acc']), 
+                'training_loss':np.mean(metrics_train['loss']),
+                'test_accuracy':np.mean(metrics_test['acc']), 
+                'test_loss':np.mean(metrics_test['loss'])
         
     }
     writer.add_hparams(settings['param'], metrics_hp)
