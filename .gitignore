@@ -5,3 +5,5 @@ env
 runs
 logs
 test
+.vscode
+.ipynb_checkpoints

@@ -52,30 +52,46 @@ class CDR3Dataset(Dataset):
             self.labels = np.unique(self.data[[self.label]])
             self.n_labels = len(self.labels)
             
-        self.max_len = self.data.CDR3ab.str.len().max()
+        self.max_len_CDRa = self.data.CDR3a.str.len().max()
+        self.max_len_CDRb = self.data.CDR3b.str.len().max()
+        self.max_len = max(self.max_len_CDRa, self.max_len_CDRb)
         
         self.tokenizer = tokenizer
         
     def __getitem__(self, index:int):
+        
+        # Word-Level tokenizing
         if isinstance(self.tokenizer.model, tokenizers.models.WordLevel):
             self.tokenizer.enable_padding(length=self.max_len)
-            CDR3ab = " ".join(list(self.data.CDR3ab[index]))
-            encodings = self.tokenizer.encode(CDR3ab)
+            CDR3a = " ".join(list(self.data.CDR3a[index]))
+            CDR3b = " ".join(list(self.data.CDR3b[index]))
+            encodings_CDR3a = self.tokenizer.encode(CDR3a)
+            encodings_CDR3b = self.tokenizer.encode(CDR3b)
             item = {
-                "ids":tensor(encodings.ids, dtype=torch.long),
-                "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
+                "ids_CDR3a":tensor(encodings_CDR3a.ids, dtype=torch.long),
+                "ids_CDR3b":tensor(encodings_CDR3b.ids, dtype=torch.long),
+                "attention_mask_CDR3a": tensor(encodings_CDR3a.attention_mask, dtype=torch.long),
+                "attention_mask_CDR3b": tensor(encodings_CDR3b.attention_mask, dtype=torch.long)
                 }
+            
+        # BPE tokenizer    
         elif isinstance(self.tokenizer.model, tokenizers.models.BPE):
             self.tokenizer.enable_padding(length=self.max_len)
-            encodings = self.tokenizer.encode(self.data.CDR3ab[index]) 
+            encodings_CDR3a = self.tokenizer.encode(self.data.CDR3a[index]) 
+            encodings_CDR3b = self.tokenizer.encode(self.data.CDR3b[index]) 
             item = {
-                "ids":tensor(encodings.ids, dtype=torch.long),
-                "attention_mask": tensor(encodings.attention_mask, dtype=torch.long)
+                "ids_CDR3a":tensor(encodings_CDR3a.ids, dtype=torch.long),
+                "ids_CDR3b":tensor(encodings_CDR3b.ids, dtype=torch.long),
+                "attention_mask_CDR3a": tensor(encodings_CDR3a.attention_mask, dtype=torch.long),
+                "attention_mask_CDR3b": tensor(encodings_CDR3b.attention_mask, dtype=torch.long)
                 }
+            
+        # Append target    
         if self.label == "multilabel":
             item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index],dtype =torch.long)
         else:
             item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
+            
         return item
 
     def __len__(self):
@@ -200,7 +216,7 @@ def main():
     
     # Add to model and hyperparameter to writer
     item = next(iter(train_dataloader))
-    writer.add_graph(model, [item['ids'].to(device), item['attention_mask'].to(device)])
+    writer.add_graph(model, [item['ids_CDR3a'].to(device), item['ids_CDR3b'].to(device)])
     
     # Initialize model weights
     model.apply(init_weights)
@@ -218,15 +234,14 @@ def main():
         for data in train_dataloader:
             
             # Prepare data
-            ids = data["ids"].to(device)
-            attention_mask = data["attention_mask"].to(device)
+            ids_CDR3a, ids_CDR3b = data["ids_CDR3a"].to(device), data["ids_CDR3b"].to(device)
             targets = data["target"].to(device)
             
             # Forward pass 
-            output = model(ids, attention_mask)
+            output = model(input_ids_alpha=ids_CDR3a, input_ids_beta=ids_CDR3b)
             loss = loss_function(output, targets.to(torch.float32))
             
-            # Compute loss
+            # Append loss
             metrics_train['loss'].append(loss.cpu().detach().numpy().item())
             
             # Back propagation
@@ -240,7 +255,7 @@ def main():
             targets = targets.to("cpu").numpy().tolist()
             target_epoch += targets
             
-            # Compoute multi label accuracies and recall, or acc
+            # Convert probabilities to labels and append to epoch
             out_label = prob2label(output, threshold=0.5)
             out_epoch += out_label
         
@@ -256,12 +271,11 @@ def main():
         for data in test_dataloader:
             
             # Prepare data
-            ids = data["ids"].to(device)
-            attention_mask = data["attention_mask"].to(device)
+            ids_CDR3a, ids_CDR3b = data["ids_CDR3a"].to(device), data["ids_CDR3b"].to(device)
             targets = data["target"].to(device)
 
             # Forward pass 
-            output=model(ids, attention_mask)
+            output = model(input_ids_alpha=ids_CDR3a, input_ids_beta=ids_CDR3b)
 
             # Compute loss
             loss = loss_function(output, targets.to(torch.float32))
