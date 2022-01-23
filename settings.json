@@ -29,6 +29,9 @@
     },
 
     "opt_param":{
+        "batch_size":[32,64,128],
+        "dropout":[0.1,0.2,0.3],
+        "learning_rate":[1e-5,0.5e-5, 2e-5]
     },
 
     "param":{
@@ -37,15 +40,15 @@
         "equal":"False",
         "batch_size":128,
         "learning_rate":1e-5,
-        "weight_decay":0,
+        "weight_decay":0.0,
         "n_epochs":100,
         "dropout":0.1
     },
 
     "model_config":{
         "hidden_size":1032,
-        "num_attention_heads":12,
-        "num_hidden_layers":12
+        "num_attention_heads":4,
+        "num_hidden_layers":4
     },
     
 

@@ -18,7 +18,6 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
-from sklearn.metrics import recall_score, precision_score
    
 class CDR3Dataset(Dataset):
     
@@ -223,7 +222,7 @@ def main():
     
     # Create the loss function and optimizer
     loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]['learning_rate'])
+    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]['learning_rate'], weight_decay = settings['param']['weight_decay'])
         
     # Training routine 
     max_acc = 0
@@ -300,7 +299,8 @@ def main():
             torch.save(model, 'best_model')
             
     # Add embedding 
-    writer.add_embedding(model.l1.embeddings.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()])
+    writer.add_embedding(model.roberta_embeddings_alpha.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()], tag="alpha_embedding")
+    writer.add_embedding(model.roberta_embeddings_beta.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()], tag="beta_embedding")
 
     # Add hyperparameter metrics            
     metrics_hp={'training_accuracy':np.max(metrics_train['acc']), 

@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=OPT
 #SBATCH -p owners
-#SBATCH --time=03:00:00
+#SBATCH --time=02:00:00
 #SBATCH -G 1
 #SBATCH -N 1
 #SBATCH -C GPU_MEM:32GB
