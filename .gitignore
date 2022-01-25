@@ -8,3 +8,4 @@ test
 .vscode
 .ipynb_checkpoints
 best_model_test
+slurm-*
