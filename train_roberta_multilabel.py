@@ -158,6 +158,11 @@ def main():
         if "dropout" in settings['opt_param']:
             settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
             print("Dropout: " + str(settings['param']['dropout']))
+        if "weight_decay" in settings['opt_param']:
+            settings['param']['weight_decay'] =  np.random.choice(settings['opt_param']['weight_decay'],1).item()
+            print("Weight Decay: " + str(settings['param']['weight_decay']))
+
+
 
         # Parse arguments for optimization
         parser = argparse.ArgumentParser(description='Optimization parameters')
