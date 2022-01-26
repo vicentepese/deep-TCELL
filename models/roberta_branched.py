@@ -52,7 +52,7 @@ class RobertaBranched(nn.Module):
     
     
     # Preclassifier
-    self.pre_classifier = nn.Linear(self.config.hidden_size*2, 4096)
+    self.pre_classifier = nn.Linear(self.config.hidden_size, 4096)
     self.dropout = nn.Dropout(classifier_dropout)
     
     # Roberta classifier
@@ -65,12 +65,13 @@ class RobertaBranched(nn.Module):
     beta_encodings = self.beta_branch(input_ids_beta)
     
     # Concat encodings 
-    encodings = torch.cat((alpha_encodings, beta_encodings), dim = 1)
-    encodings = encodings[0]
+    encodings = torch.cat((alpha_encodings.last_hidden_state, beta_encodings.last_hidden_state), dim = 1)
     encodings = encodings[:,0,:]
+    encodings = self.dropout(encodings)
     
     # Pooler
     out_pre_classifier = self.pre_classifier(encodings)
+    out_pre_classifier = torch.tanh(out_pre_classifier)
     pooler = self.dropout(out_pre_classifier)
     
     # Classifier
