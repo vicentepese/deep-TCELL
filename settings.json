@@ -4,7 +4,7 @@
         "Resources":"/home/users/vipese/Projects/deep-TCELL/Resources/",
         "utils":"/home/users/vipese/Projects/deep-TCELL/utils", 
         "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/",
-        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/CDR_alpha_beta_embedding/large_1024_4096HC/"
+        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/CDR_alpha_beta_embedding/large_1024_4096HC_DP_TANH_test/DP01_LR1e5_WD001/"
     },
 
     "file":{
@@ -29,9 +29,7 @@
     }, 
 
     "opt_param":{
-        "batch_size":[32,64,128],
-        "learning_rate":[0.5e-5, 1e-5, 2e-5],
-        "drpopout":[0.1, 0.2, 0.3]
+
     },
 
     "param":{
@@ -39,8 +37,8 @@
         "test_split":0.7, 
         "equal":"False",
         "batch_size":128,
-        "learning_rate":2e-5,
-        "weight_decay":0.0,
+        "learning_rate":1e-5,
+        "weight_decay":0.01,
         "n_epochs":100,
         "dropout":0.1
     },
