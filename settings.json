@@ -4,7 +4,7 @@
         "Resources":"/home/users/vipese/Projects/deep-TCELL/Resources/",
         "utils":"/home/users/vipese/Projects/deep-TCELL/utils", 
         "Outputs":"/home/users/vipese/Projects/deep-TCELL/Outputs/",
-        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/CDR_alpha_beta_embedding/large_1024_4096HC_DP_TANH_test/DP01_LR1e5_WD001/"
+        "runs":"/home/users/vipese/Projects/deep-TCELL/runs/CDR_alpha_beta_embedding/RobertaBranched/"
     },
 
     "file":{
@@ -38,15 +38,15 @@
         "equal":"False",
         "batch_size":128,
         "learning_rate":1e-5,
-        "weight_decay":0.01,
+        "weight_decay":0.0,
         "n_epochs":100,
         "dropout":0.1
     },
 
     "model_config":{
-        "hidden_size":1024,
-        "num_attention_heads":16,
-        "num_hidden_layers":24
+        "hidden_size":1032,
+        "num_attention_heads":12,
+        "num_hidden_layers":12
     },
     
 
