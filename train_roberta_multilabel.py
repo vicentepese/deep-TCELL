@@ -4,7 +4,8 @@ import pandas as pd
 import json
 import tokenizers
 import torch
-from models.roberta_multilabel import Net
+# from models.roberta_multilabel import Net
+from models.roberta_multilabel_test import Net
 from utils.utils import *
 import argparse
 from tqdm import tqdm
