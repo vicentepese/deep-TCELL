@@ -4,8 +4,7 @@ import pandas as pd
 import json
 import tokenizers
 import torch
-# from models.roberta_multilabel import Net
-from models.roberta_multilabel_test import Net
+from models.roberta_branched import RobertaBranched
 from utils.utils import *
 import argparse
 from tqdm import tqdm
@@ -216,7 +215,7 @@ def main():
                                **settings['model_config'])
 
     # Create the model and move to device
-    model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
+    model = RobertaBranched(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
     model.to(device)
     
     # Add to model and hyperparameter to writer

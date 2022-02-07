@@ -52,7 +52,11 @@ class Net(nn.Module):
     encodings = self.roberta_encoding(embeddings_cat)   
     encodings = encodings[0]
     encodings = encodings[:,0,:]
+    encodings = self.dropout(encodings)
+    
+    # Pre classifier
     out_pre_classifier = self.pre_classifier(encodings)
+    out_pre_classifier = torch.tanh(out_pre_classifier)
     pooler = self.dropout(out_pre_classifier)
     
     # Classifier
