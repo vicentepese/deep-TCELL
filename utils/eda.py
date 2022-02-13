@@ -7,7 +7,7 @@ import tokenizers
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 import seaborn as sns
-
+import pickle
 
 from torch import tensor
 from torch.utils.data import DataLoader, Dataset
@@ -21,7 +21,7 @@ from sklearn.metrics import multilabel_confusion_matrix, ConfusionMatrixDisplay,
 from sklearn.decomposition import PCA 
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import LabelEncoder
-from utils.utils import prob2label
+from utils import prob2label
 from mpl_toolkits.mplot3d import Axes3D
 from collections import defaultdict
 from tqdm import tqdm
@@ -70,21 +70,6 @@ class CDR3Dataset(Dataset):
                 "CDR3a": self.data.CDR3a[index],
                 "CDR3b": self.data.CDR3b[index]
                 }
-        # if isinstance(self.tokenizer.model, tokenizers.models.WordLevel):
-        #     self.tokenizer.enable_padding(length=self.max_len)
-        #     CDR3a = " ".join(list(self.data.CDR3a[index]))
-        #     CDR3b = " ".join(list(self.data.CDR3b[index]))
-        #     encodings_CDR3a = self.tokenizer.encode(CDR3a)
-        #     encodings_CDR3b = self.tokenizer.encode(CDR3b)
-        #     item = {
-        #         "ids_CDR3a":tensor(encodings_CDR3a.ids, dtype=torch.long),
-        #         "ids_CDR3b":tensor(encodings_CDR3b.ids, dtype=torch.long),
-        #         "attention_mask_CDR3a": tensor(encodings_CDR3a.attention_mask, dtype=torch.long),
-        #         "attention_mask_CDR3b": tensor(encodings_CDR3b.attention_mask, dtype=torch.long),
-        #         "CDR3a": self.data.CDR3a[index],
-        #         "CDR3b": self.data.CDR3b[index]
-        #         }
-            
         elif isinstance(self.tokenizer.model, tokenizers.models.BPE):
             self.tokenizer.enable_padding(length=self.max_len)
             encodings_CDR3a = self.tokenizer.encode(self.data.CDR3a[index]) 
@@ -153,8 +138,8 @@ def main():
     AA_vocab = [key for key in tokenizer.get_vocab().keys() if "[" not in key]
     
     # Initialize model and tokenizer
-    tokenizer = test_data.tokenizer
-    tokenizer.enable_padding(length=test_data.max_len)
+    tokenizer = train_data.tokenizer
+    tokenizer.enable_padding(length=train_data.max_len)
     model.eval()
 
     # Output dictionaries
@@ -162,7 +147,7 @@ def main():
     HA_beta_dict, NP_beta_dict, HCRT_beta_dict, neg_beta_dict =  defaultdict(pd.DataFrame), defaultdict(pd.DataFrame), defaultdict(pd.DataFrame), defaultdict(pd.DataFrame)
 
     # Main loop
-    for data in tqdm(test_dataloader):
+    for data in tqdm(train_dataloader):
         CDR3a, CDR3b = data["CDR3a"][0], data["CDR3b"][0]
         targets = data["target"].tolist()[0]
         label = data["label"][0]
@@ -189,19 +174,19 @@ def main():
                 encodings_CDR3a_mod =  torch.unsqueeze(tensor(tokenizer.encode(CDR3a_mod).ids, dtype=torch.long), dim=0).to(device)
                 mod_outs = model(encodings_CDR3a_mod, encodings_CDR3b).detach().to('cpu').tolist()[0]
                 mod_probs += [np.subtract(original_outs, mod_outs).tolist()]
-                idx_list += [idx]
+                idx_list += [idx/len(CDR3a)]
                 AA_list += [AA]
                 
-        # Append to dictionaries 
-        if label == "activatedby_HA":
+    # Append to dictionaries 
+        if label == "HA69":
             HA_alpha_dict["P_HA"] = pd.concat([HA_alpha_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
             HA_alpha_dict["P_NP"] = pd.concat([HA_alpha_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
             HA_alpha_dict["P_HCRT"] = pd.concat([HA_alpha_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
-        elif label == "activatedby_NP":
+        elif label == "NP136":
             NP_alpha_dict["P_HA"] = pd.concat([NP_alpha_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
             NP_alpha_dict["P_NP"] = pd.concat([NP_alpha_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
             NP_alpha_dict["P_HCRT"] = pd.concat([NP_alpha_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
-        elif label == "activatedby_HCRT":
+        elif label == "HCRT":
             HCRT_alpha_dict["P_HA"] = pd.concat([HCRT_alpha_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
             HCRT_alpha_dict["P_NP"] = pd.concat([HCRT_alpha_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
             HCRT_alpha_dict["P_HCRT"] = pd.concat([HCRT_alpha_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
@@ -209,10 +194,76 @@ def main():
             neg_alpha_dict["P_HA"] = pd.concat([neg_alpha_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
             neg_alpha_dict["P_NP"] = pd.concat([neg_alpha_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
             neg_alpha_dict["P_HCRT"] = pd.concat([neg_alpha_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
-                    
-                
             
+        # Beta chain loop 
+        mod_probs, idx_list, AA_list = [], [], []
+        for idx, AA_CDR3b in enumerate(CDR3b):
+            
+            # Remove original AA
+            AA_list_CDR3b = AA_vocab.copy()
+            AA_list_CDR3b.remove(AA_CDR3b.lower())
+            
+            # Iterate over all remaining AAs
+            for AA in AA_list_CDR3b:
+                CDR3b_mod = list(CDR3b)
+                CDR3b_mod[idx] = AA.capitalize()
+                CDR3b_mod = " ".join(CDR3b_mod)
+                encodings_CDR3b_mod =  torch.unsqueeze(tensor(tokenizer.encode(CDR3b_mod).ids, dtype=torch.long), dim=0).to(device)
+                mod_outs = model(encodings_CDR3a, encodings_CDR3b_mod).detach().to('cpu').tolist()[0]
+                mod_probs += [np.subtract(original_outs, mod_outs).tolist()]
+                idx_list += [idx/len(CDR3b)]
+                AA_list += [AA]
+                
+    # Append to dictionaries 
+        if label == "HA69":
+            HA_beta_dict["P_HA"] = pd.concat([HA_beta_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
+            HA_beta_dict["P_NP"] = pd.concat([HA_beta_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
+            HA_beta_dict["P_HCRT"] = pd.concat([HA_beta_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
+        elif label == "NP136":
+            NP_beta_dict["P_HA"] = pd.concat([NP_beta_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
+            NP_beta_dict["P_NP"] = pd.concat([NP_beta_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
+            NP_beta_dict["P_HCRT"] = pd.concat([NP_beta_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
+        elif label == "HCRT":
+            HCRT_beta_dict["P_HA"] = pd.concat([HCRT_beta_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
+            HCRT_beta_dict["P_NP"] = pd.concat([HCRT_beta_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
+            HCRT_beta_dict["P_HCRT"] = pd.concat([HCRT_beta_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
+        else:
+            neg_beta_dict["P_HA"] = pd.concat([neg_beta_dict["P_HA"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[0] for item in mod_probs]})], axis=0)
+            neg_beta_dict["P_NP"] = pd.concat([neg_beta_dict["P_NP"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[1] for item in mod_probs]})], axis=0)
+            neg_beta_dict["P_HCRT"] = pd.concat([neg_beta_dict["P_HCRT"], pd.DataFrame({"AA": AA_list, "position":idx_list, "delta_prob":[item[2] for item in mod_probs]})], axis=0)
+                
+    # Alpha chain
+    HA_alpha_mean, NP_alpha_mean, HCRT_alpha_mean, neg_alpha_mean = defaultdict(pd.DataFrame), defaultdict(pd.DataFrame), defaultdict(pd.DataFrame), defaultdict(pd.DataFrame)
+    mean_alpha = {'HA':HA_alpha_mean, 'NP':NP_alpha_mean, 'HCRT':HCRT_alpha_mean, 'negative':neg_alpha_mean} 
+    alpha = {'HA':HA_alpha_dict, 'NP':NP_alpha_dict, 'HCRT':HCRT_alpha_dict, 'negative':neg_alpha_dict} 
 
+    for peptide in alpha.keys():
+        for prob in alpha[peptide].keys():
+            for AA in AA_vocab:
+                AA_mean = alpha[peptide][prob][alpha[peptide][prob]["AA"] == AA].groupby("position").mean().reset_index()
+                AA_mean["AA"] = [AA] * AA_mean.shape[0]
+                mean_alpha[peptide]["mean_" + prob] = pd.concat([mean_alpha[peptide]["mean_" + prob], AA_mean] , axis=0)
+
+    # Beta chain    
+    HA_beta_mean, NP_beta_mean, HCRT_beta_mean, neg_beta_mean = defaultdict(pd.DataFrame), defaultdict(pd.DataFrame), defaultdict(pd.DataFrame), defaultdict(pd.DataFrame)
+    mean_beta = {'HA':HA_beta_mean, 'NP':NP_beta_mean, 'HCRT':HCRT_beta_mean, 'negative':neg_beta_mean} 
+    beta = {'HA':HA_beta_dict, 'NP':NP_beta_dict, 'HCRT':HCRT_beta_dict, 'negative':neg_beta_dict} 
+
+    for peptide in beta.keys():
+        for prob in beta[peptide].keys():
+            for AA in AA_vocab:
+                AA_mean = beta[peptide][prob][beta[peptide][prob]["AA"] == AA].groupby("position").mean().reset_index()
+                AA_mean["AA"] = [AA] * AA_mean.shape[0]
+                mean_beta[peptide]["mean_" + prob] = pd.concat([mean_beta[peptide]["mean_" + prob], AA_mean] , axis=0)        
+
+    # Save dictionaries
+    with open("alpha_delta_probs_train_true.pkl", "wb") as outFile:
+        pickle.dump(alpha, outFile)
+        outFile.close()
+        
+    with open("beta_delta_probs_train_true.pkl", "wb") as outFile:
+        pickle.dump(beta, outFile)
+        outFile.close()
     
 if __name__ == "__main__":
     main()
