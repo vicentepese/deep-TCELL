@@ -7,4 +7,4 @@
 #SBATCH -C GPU_MEM:32GB
 
 source env/bin/activate
-python3 train_roberta_branched.py
+python3 train_roberta_multilabel.py
