@@ -149,39 +149,6 @@ def main():
     # Load settings 
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
-        
-    # # Create random sample hyperparameter
-    # if settings['opt_param']:
-    #     print("Optimizing parameters:")
-    #     if "batch_size" in settings['opt_param']:
-    #         settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
-    #         print("Batch_size:" + str(settings['param']['batch_size']))
-    #     if "learning_rate" in settings['opt_param']:
-    #         settings['param']['learning_rate'] =  np.random.choice(settings['opt_param']['learning_rate'],1).item()
-    #         print("Learning rate: " + str(settings['param']['learning_rate']))
-    #     if "dropout" in settings['opt_param']:
-    #         settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
-    #         print("Dropout: " + str(settings['param']['dropout']))
-    #     if "weight_decay" in settings['opt_param']:
-    #         settings['param']['weight_decay'] =  np.random.choice(settings['opt_param']['weight_decay'],1).item()
-    #         print("Weight Decay: " + str(settings['param']['weight_decay']))
-
-    #     # Parse arguments for optimization
-    #     parser = argparse.ArgumentParser(description='Optimization parameters')
-    #     parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
-
-    #     # Execute the parse_args() method
-    #     args = parser.parse_args()
-    #     print(args.jobid)
-        
-    #     # Initialize tensorboard session
-    #     writer = SummaryWriter(settings['dir']['runs'] + str(args.jobid))
-    # else:
-    #     writer = SummaryWriter(settings['dir']['runs'])
-        
-    # # Set device 
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
-    # print("Using device: " + device)
     
     # Set random seed
     seed_nr = 1964
