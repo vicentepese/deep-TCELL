@@ -5,12 +5,11 @@ import json
 import tokenizers
 import torch
 # from models.roberta_multilabel import Net
-from models.roberta_multilabel_test import Net
+from models.roberta_multilabel import Net
 from utils.utils import *
 import argparse
 from tqdm import tqdm
 from operator import add
-from collections import OrderedDict, defaultdict
 
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, tensor
@@ -19,6 +18,10 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import  RobertaConfig
 from tokenizers.models import WordLevel, BPE
 from tokenizers import Tokenizer
+
+from pytorch_lightning import loggers as pl_loggers
+import pytorch_lightning as pl
+
    
 class CDR3Dataset(Dataset):
     
@@ -88,9 +91,9 @@ class CDR3Dataset(Dataset):
             
         # Append target    
         if self.label == "multilabel":
-            item["target"]=tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index],dtype =torch.long)
+            item["target"]= tensor(self.data[["activatedby_HA", "activatedby_NP", "activatedby_HCRT"]].iloc[index].to_list())
         else:
-            item["target"] = tensor(self.data[self.label][index], dtype=torch.long)
+            item["target"] = self.data[self.label][index]
             
         return item
 
@@ -147,40 +150,38 @@ def main():
     with open("settings.json", "r") as inFile: 
         settings = json.load(inFile)
         
-    # Create random sample hyperparameter
-    if settings['opt_param']:
-        print("Optimizing parameters:")
-        if "batch_size" in settings['opt_param']:
-            settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
-            print("Batch_size:" + str(settings['param']['batch_size']))
-        if "learning_rate" in settings['opt_param']:
-            settings['param']['learning_rate'] =  np.random.choice(settings['opt_param']['learning_rate'],1).item()
-            print("Learning rate: " + str(settings['param']['learning_rate']))
-        if "dropout" in settings['opt_param']:
-            settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
-            print("Dropout: " + str(settings['param']['dropout']))
-        if "weight_decay" in settings['opt_param']:
-            settings['param']['weight_decay'] =  np.random.choice(settings['opt_param']['weight_decay'],1).item()
-            print("Weight Decay: " + str(settings['param']['weight_decay']))
+    # # Create random sample hyperparameter
+    # if settings['opt_param']:
+    #     print("Optimizing parameters:")
+    #     if "batch_size" in settings['opt_param']:
+    #         settings['param']['batch_size'] = np.random.choice(settings['opt_param']['batch_size'],1).item()
+    #         print("Batch_size:" + str(settings['param']['batch_size']))
+    #     if "learning_rate" in settings['opt_param']:
+    #         settings['param']['learning_rate'] =  np.random.choice(settings['opt_param']['learning_rate'],1).item()
+    #         print("Learning rate: " + str(settings['param']['learning_rate']))
+    #     if "dropout" in settings['opt_param']:
+    #         settings['param']['dropout'] =  np.random.choice(settings['opt_param']['dropout'],1).item()
+    #         print("Dropout: " + str(settings['param']['dropout']))
+    #     if "weight_decay" in settings['opt_param']:
+    #         settings['param']['weight_decay'] =  np.random.choice(settings['opt_param']['weight_decay'],1).item()
+    #         print("Weight Decay: " + str(settings['param']['weight_decay']))
 
+    #     # Parse arguments for optimization
+    #     parser = argparse.ArgumentParser(description='Optimization parameters')
+    #     parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
 
-
-        # Parse arguments for optimization
-        parser = argparse.ArgumentParser(description='Optimization parameters')
-        parser.add_argument('--jobid', type = str, help="slurmjobid", default="")
-
-        # Execute the parse_args() method
-        args = parser.parse_args()
-        print(args.jobid)
+    #     # Execute the parse_args() method
+    #     args = parser.parse_args()
+    #     print(args.jobid)
         
-        # Initialize tensorboard session
-        writer = SummaryWriter(settings['dir']['runs'] + str(args.jobid))
-    else:
-        writer = SummaryWriter(settings['dir']['runs'])
+    #     # Initialize tensorboard session
+    #     writer = SummaryWriter(settings['dir']['runs'] + str(args.jobid))
+    # else:
+    #     writer = SummaryWriter(settings['dir']['runs'])
         
-    # Set device 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Using device: " + device)
+    # # Set device 
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    # print("Using device: " + device)
     
     # Set random seed
     seed_nr = 1964
@@ -201,11 +202,13 @@ def main():
     train_data = CDR3Dataset(settings,train=True, equal=False, **dataset_params)
     test_data =CDR3Dataset(settings, train=False, **dataset_params)
     
+    #TODO: add stratification
     # Crate dataloaders
     loader_params = {'batch_size': settings["param"]['batch_size'],
                 'shuffle': True,
                 'num_workers': 0
                 }
+    
     train_dataloader = DataLoader(train_data, **loader_params)
     test_dataloader = DataLoader(test_data, **loader_params)
     
@@ -217,109 +220,16 @@ def main():
 
     # Create the model and move to device
     model = Net(n_labels=train_data.n_labels, model_config=model_config, classifier_dropout=settings['param']['dropout'])
-    model.to(device)
     
-    # Add to model and hyperparameter to writer
-    item = next(iter(train_dataloader))
-    writer.add_graph(model, [item['ids_CDR3a'].to(device), item['ids_CDR3b'].to(device)])
+    # Train model 
+    tb_logger = pl_loggers.TensorBoardLogger("./logs_lightning/")
+    trainer = pl.Trainer(gpus=1,max_epochs=10,logger = tb_logger)
+    trainer.fit(model, 
+            train_dataloader, 
+            test_dataloader)
     
-    # Initialize model weights
-    model.apply(init_weights)
     
-    # Create the loss function and optimizer
-    loss_function = nn.BCELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr = settings["param"]['learning_rate'], weight_decay = settings['param']['weight_decay'])
-        
-    # Training routine 
-    max_acc = 0
-    metrics_train, metrics_test = defaultdict(list), defaultdict(list)
-    for i in tqdm(range(settings["param"]["n_epochs"])):
-        model.train()
-        target_epoch, out_epoch = [], []
-        for data in train_dataloader:
-            
-            # Prepare data
-            ids_CDR3a, ids_CDR3b = data["ids_CDR3a"].to(device), data["ids_CDR3b"].to(device)
-            targets = data["target"].to(device)
-            
-            # Forward pass 
-            output = model(input_ids_alpha=ids_CDR3a, input_ids_beta=ids_CDR3b)
-            loss = loss_function(output, targets.to(torch.float32))
-            
-            # Append loss
-            metrics_train['loss'].append(loss.cpu().detach().numpy().item())
-            
-            # Back propagation
-            optimizer.zero_grad()
-            loss.backward()
-            
-            # Update weights
-            optimizer.step()
-            
-            # Move target to CPU, convert to numpy and append to epoch
-            targets = targets.to("cpu").numpy().tolist()
-            target_epoch += targets
-            
-            # Convert probabilities to labels and append to epoch
-            out_label = prob2label(output, threshold=0.5)
-            out_epoch += out_label
-        
-        # Compute metrics
-        metrics_train = compute_metrics(metrics_train, out_epoch, target_epoch)
 
-        # Add to writer
-        write_metrics(metrics_train, writer, train=True, epoch=i)
-
-        # Test 
-        model.eval()
-        target_epoch, out_epoch = [], []
-        for data in test_dataloader:
-            
-            # Prepare data
-            ids_CDR3a, ids_CDR3b = data["ids_CDR3a"].to(device), data["ids_CDR3b"].to(device)
-            targets = data["target"].to(device)
-
-            # Forward pass 
-            output = model(input_ids_alpha=ids_CDR3a, input_ids_beta=ids_CDR3b)
-
-            # Compute loss
-            loss = loss_function(output, targets.to(torch.float32))
-            metrics_test['loss'].append(loss.cpu().detach().numpy().item())
-            
-            # Move target to CPU, convert to numpy and append to epoch
-            targets = targets.to("cpu").numpy().tolist()
-            target_epoch += targets
-            
-            # Compoute multi label accuracies and recall, or acc
-            out_label = prob2label(output, threshold=0.5)
-            out_epoch += out_label
-            
-        # Compute metrics
-        metrics_test = compute_metrics(metrics_test, out_epoch, target_epoch)
-
-        # Add to writer
-        write_metrics(metrics_test, writer, train=False, epoch=i)
-
-        # Save model 
-        if max_acc < np.max(metrics_train['acc']):
-            torch.save(model, 'best_model')
-            
-    # Add embedding 
-    writer.add_embedding(model.roberta_embeddings_alpha.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()], tag="alpha_embedding")
-    writer.add_embedding(model.roberta_embeddings_beta.word_embeddings.weight, metadata=[word for word, val in tokenizer.get_vocab().items()], tag="beta_embedding")
-
-    # Add hyperparameter metrics            
-    metrics_hp={'training_accuracy':np.max(metrics_train['acc']), 
-                'training_loss':np.mean(metrics_train['loss']),
-                'test_accuracy':np.mean(metrics_test['acc']), 
-                'test_loss':np.mean(metrics_test['loss'])
-        
-    }
-    writer.add_hparams(settings['param'], metrics_hp)
-    
-    # Flush writer
-    writer.flush()
-    
 
 if __name__ == "__main__":
     main()

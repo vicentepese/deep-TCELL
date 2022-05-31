@@ -40,6 +40,9 @@ class Net(pl.LightningModule):
     # Roberta classifier
     self.classifier = nn.Linear(4096, self.n_labels)
     
+    # Loss
+    self.loss = torch.nn.BCELoss()
+    
     # Metrics 
     self.metrics = {
       'train_accuracy': torchmetrics.Accuracy(),
@@ -108,61 +111,40 @@ class Net(pl.LightningModule):
   def compute_step(self,batch):
         ids_CDR3a, ids_CDR3b, target = batch["ids_CDR3a"], batch["ids_CDR3b"], batch['target']
         label_logits = self.forward(ids_CDR3a, ids_CDR3b)
-        threshold = torch.tensor([0.5])
+        threshold = torch.tensor([0.5]).to('cuda') if torch.cuda.is_available() else torch.tensor([0.5])
         label_pred = (label_logits>threshold).float()*1
-        return self.loss(label_logits,target), target, label_logits, label_pred
+        return self.loss(label_logits, target.type(torch.float)), target, label_logits, label_pred
       
   def log_metrics(self, type:str, loss:torch.Tensor, target:torch.Tensor, label_logits:torch.Tensor) -> None:
-    self.metrics[type+'_accuracy'](label_logits, target)
-    self.metrics[type+'_precision_micro'](label_logits, target)
-    self.metrics[type+'_precision_macro'](label_logits, target)
-    self.metrics[type+'_precision_samples'](label_logits, target)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    self.log_dict({'loss':{type:loss}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'accuracy':{type:self.metrics[type+'_accuracy'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'precision/micro':{type:self.metrics[type+'_precision_micro'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'precision/macro':{type:self.metrics[type+'_precision_macro'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'precision/samples':{type:self.metrics[type+'_precision_samples'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'recall/micro':{type:self.metrics[type+'_recall_micro'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'recall/macro':{type:self.metrics[type+'_recall_macro'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'recall/samples':{type:self.metrics[type+'_recall_samples'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'F1/micro':{type:self.metrics[type+'_F1_micro'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'F1/macro':{type:self.metrics[type+'_F1_macro'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'F1/samples':{type:self.metrics[type+'_F1_samples'].to(device)(label_logits, target)}}, on_step=False, on_epoch=True, prog_bar=False)
     
-    self.metrics[type+'_recall_micro'](label_logits, target)
-    self.metrics[type+'_recall_macro'](label_logits, target)
-    self.metrics[type+'_recall_samples'](label_logits, target)
-    
-    self.metrics[type+'_F1_micro'](label_logits, target)
-    self.metrics[type+'_F1_macro'](label_logits, target)
-    self.metrics[type+'_F1_samples'](label_logits, target)
+    self.log_dict({'precision_all/' + type: {str(idx): val for idx, val in enumerate(self.metrics[type+'_precision_all'].to(device)(label_logits, target))}}, 
+                  on_step=False, on_epoch=True, prog_bar=False)
+    self.log_dict({'recall_all/' + type: {str(idx): val for idx, val in enumerate(self.metrics[type+'_recall_all'].to(device)(label_logits, target))}}, 
+                  on_step=False, on_epoch=True, prog_bar=False)    
 
-    self.logger.experiment.add_scalar({type+"/loss": loss, type+'/acc' : self.train_accuracy,
-                    type+"/precision_micro": self.metrics[type+'_precision_micro'], 
-                    type+"/precision_macro": self.metrics[type+'_precision_macro'],
-                    type+"/precision_samples": self.metrics[type+'_precision_samples'],
-                    type+"/recall_micro": self.metrics[type+'_recall_micro'], 
-                    type+"/recall_macro": self.metrics[type+'_recall_macro'],
-                    type+"/recall_samples": self.metrics[type+'_recall_samples'],
-                    type+"/F1_micro": self.metrics[type+'_F1_micro'], 
-                    type+"/F1_macro": self.metrics[type+'_F1_macro'],
-                    type+"/F1_samples": self.metrics[type+'_F1_samples']}, 
-              on_step=False, 
-              on_epoch=True, 
-              prog_bar=True)
-    
-    self.logger.experiment.add_scalar(type+'/precision_all',
-                                      {idx: val for idx, val in enumerate(self.metrics[type+'_precision_all'])},
-              on_step=False, 
-              on_epoch=True, 
-              prog_bar=True)
-    
-    self.logger.experiment.add_scalar(type+'/recall_all',
-                                      {idx: val for idx, val in enumerate(self.metrics[type+'_precision_all'])},
-              on_step=False, 
-              on_epoch=True, 
-              prog_bar=True)
-  
   def training_step(self, train_batch):
         loss, target, label_logits, _ = self.compute_step(train_batch)
         self.log_metrics("train", loss, target, label_logits)
         return loss
 
-  def test_step(self, val_batch):
-        loss, target, label_logits, _ = self.compute_step(val_batch)
-        self.log_metrics("val", loss, target, label_logits)
-        return loss
+#   def test_step(self, val_batch):
+#         loss, target, label_logits, _ = self.compute_step(val_batch)
+#         self.log_metrics("val", loss, target, label_logits)
+#         return loss
       
-  def validation_step(self, val_batch):
+  def validation_step(self, val_batch, batch_idx):
         loss, target, label_logits, _ = self.compute_step(val_batch)
-        self.log_metrics("val", loss, target, label_logits)
+        self.log_metrics("test", loss, target, label_logits)
         return loss  
